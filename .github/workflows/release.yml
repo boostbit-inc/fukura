@@ -49,10 +49,14 @@ jobs:
             echo "LINUX_GPG_KEY not set, skipping signing"
           else
             echo "$LINUX_GPG_KEY" | base64 --decode | gpg --batch --import
+            KEY_ID=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')
             for pkg in dist/*.deb dist/*.rpm 2>/dev/null; do
               [ -e "$pkg" ] || continue
               echo "$LINUX_GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback --detach-sign --armor "$pkg"
             done
+            if [ -n "$KEY_ID" ]; then
+              gpg --batch --armor --export "$KEY_ID" > dist/fukura-archive-keyring.gpg
+            fi
           fi
 
       - name: Build APT repository skeleton

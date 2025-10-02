@@ -29,6 +29,10 @@ DIST_DIR_DEB=pool/main/f/fukura
 OUTPUT_DIR=${REPO_ROOT}/dists/${DIST_NAME}/main/binary-${ARCH}
 mkdir -p "$OUTPUT_DIR"
 
+if [ -f "${DIST_DIR}/fukura-archive-keyring.gpg" ]; then
+  cp "${DIST_DIR}/fukura-archive-keyring.gpg" "$REPO_ROOT/fukura-archive-keyring.gpg"
+fi
+
 pushd "$REPO_ROOT" >/dev/null
 PACKAGE_FILE=$(mktemp)
 dpkg-scanpackages --arch "$ARCH" "$DIST_DIR_DEB" > "$PACKAGE_FILE"
