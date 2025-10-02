@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    # To add Windows/macOS installers later, extend the matrix below and
+    # restore the platform-specific signing steps.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            targets: "x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu"
+            shell: bash
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-dist
+        run: cargo install cargo-dist --locked
+
+      - name: Build & Test
+        run: |
+          cargo test
+
+      - name: Build release artifacts
+        run: |
+          cargo dist build --target ${{ matrix.targets }} --artifacts all
+
+      - name: Sign Linux packages
+        env:
+          LINUX_GPG_KEY: ${{ secrets.LINUX_GPG_KEY }}
+          LINUX_GPG_PASSPHRASE: ${{ secrets.LINUX_GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${LINUX_GPG_KEY:-}" ]; then
+            echo "LINUX_GPG_KEY not set, skipping signing"
+          else
+            echo "$LINUX_GPG_KEY" | base64 --decode | gpg --batch --import
+            for pkg in dist/*.deb dist/*.rpm 2>/dev/null; do
+              [ -e "$pkg" ] || continue
+              echo "$LINUX_GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback --detach-sign --armor "$pkg"
+            done
+          fi
+
+      - name: Build APT repository skeleton
+        run: |
+          scripts/linux/build-apt-repo.sh dist stable amd64
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: dist
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Install cargo-dist
+        run: cargo install cargo-dist --locked
+
+      - name: Upload release artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cargo dist upload --from-local dist --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}

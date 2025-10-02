@@ -1,0 +1,31 @@
+name: Trigger Site Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - README.md
+      - dist.toml
+      - '.github/workflows/release.yml'
+      - '.github/workflows/site-deploy.yml'
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify fukura-site deployment workflow
+        env:
+          SITE_DISPATCH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "${SITE_DISPATCH_TOKEN:-}" ]; then
+            echo "SITE_DISPATCH_TOKEN not set, skipping notification"
+            exit 0
+          fi
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${SITE_DISPATCH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/repos/boostbit-inc/fukura-site/dispatches \
+            -d '{"event_type":"deploy","client_payload":{"source":"boostbit-inc/fukura"}}'

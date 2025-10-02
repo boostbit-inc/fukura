@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="Fukura CLI"
+           Language="1033"
+           Version="$(var.Version)"
+           Manufacturer="BoostBit"
+           UpgradeCode="{AA0B55C8-49E8-4C01-9902-0FC0AA5F7623}">
+    <Package InstallerVersion="600"
+             Compressed="yes"
+             InstallPrivileges="elevated"
+             InstallScope="perMachine" />
+
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of Fukura is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Feature Id="MainFeature" Title="Fukura CLI" Level="1">
+      <ComponentRef Id="cmpFukuraExe" />
+      <ComponentRef Id="cmpFukuExe" />
+      <ComponentRef Id="cmpPath" />
+    </Feature>
+
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLDIR" Name="Fukura">
+          <Directory Id="BIN_DIR" Name="bin" />
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Component Id="cmpFukuraExe" Guid="{79C4033E-5E20-4C8E-8FA3-6A92A70E6D92}" Directory="BIN_DIR">
+      <File Id="filFukuraExe" Source="fukura.exe" KeyPath="yes" Checksum="yes" />
+    </Component>
+
+    <Component Id="cmpFukuExe" Guid="{5F4EC4AD-4D81-4951-9DA6-8C950DD9ECE1}" Directory="BIN_DIR">
+      <File Id="filFukuExe" Source="fuku.exe" KeyPath="yes" Checksum="yes" />
+    </Component>
+
+    <Component Id="cmpPath" Guid="{62BD09EC-9891-4637-8FD4-43C135E458AB}" Directory="BIN_DIR">
+      <Environment Id="envPATH"
+                   Name="PATH"
+                   Value="[BIN_DIR]"
+                   Permanent="no"
+                   Part="last"
+                   Action="set"
+                   System="yes" />
+    </Component>
+
+    <UIRef Id="WixUI_InstallDir" />
+    <UI>
+      <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+    </UI>
+  </Product>
+</Wix>
