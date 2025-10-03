@@ -101,6 +101,14 @@ impl FukuraRepo {
         let cfg = FukuraConfig::load(&self.config_path())?;
         let redactor = Redactor::default_with_overrides(&cfg.redaction_overrides);
         note.body = redactor.redact(&note.body);
+        
+        // Also redact meta fields
+        let mut redacted_meta = std::collections::BTreeMap::new();
+        for (key, value) in note.meta {
+            redacted_meta.insert(key, redactor.redact(&value));
+        }
+        note.meta = redacted_meta;
+        
         let object_id = self.persist_object("note", &note.canonical_bytes()?)?;
         let record = NoteRecord {
             object_id: object_id.clone(),

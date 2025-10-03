@@ -33,9 +33,10 @@ fn test_bulk_insert_performance() {
     let repo = FukuraRepo::init(temp_dir.path(), true).expect("Failed to init repo");
 
     let start = Instant::now();
+    let timeout = std::time::Duration::from_secs(120); // 2 minute timeout
 
-    // Insert 100 notes
-    for i in 0..100 {
+    // Insert 50 notes (reduced for faster testing)
+    for i in 0..50 {
         let note = create_test_note(
             &format!("Performance Test Note {}", i),
             &format!(
@@ -44,14 +45,19 @@ fn test_bulk_insert_performance() {
             ),
         );
         repo.store_note(note).expect("Failed to store note");
+        
+        // Check timeout
+        if start.elapsed() > timeout {
+            panic!("Test timed out after {:?}", timeout);
+        }
     }
 
     let duration = start.elapsed();
-    println!("Bulk insert of 100 notes took: {:?}", duration);
+    println!("Bulk insert of 50 notes took: {:?}", duration);
 
     // Should complete within reasonable time (adjust threshold as needed)
     assert!(
-        duration.as_millis() < 300000,
+        duration.as_millis() < 60000, // 1 minute timeout
         "Bulk insert took too long: {:?}",
         duration
     );

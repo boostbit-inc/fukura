@@ -130,15 +130,17 @@ fn test_sensitive_data_redaction() {
         .load_note(&record.object_id)
         .expect("Failed to load note");
 
-    // Verify sensitive data is preserved (redaction should be handled at display time)
-    // This test ensures the storage mechanism doesn't accidentally modify data
-    assert!(retrieved.note.body.contains("secret123"));
-    assert!(retrieved
-        .note
-        .meta
-        .get("password")
-        .unwrap()
-        .contains("secret123"));
+    // Verify sensitive data is redacted (security feature working correctly)
+    // This test ensures the redaction mechanism is working properly
+    
+    // Body should be redacted
+    assert!(!retrieved.note.body.contains("secret123"));
+    assert!(retrieved.note.body.contains("__GENERIC_SECRET_REDACTED__"));
+    
+    // Meta fields should also be redacted
+    let password_value = retrieved.note.meta.get("password").unwrap();
+    assert!(!password_value.contains("secret123"));
+    assert!(password_value.contains("__GENERIC_SECRET_REDACTED__"));
 }
 
 #[test]

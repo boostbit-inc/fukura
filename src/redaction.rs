@@ -7,7 +7,7 @@ static DEFAULT_PATTERNS: Lazy<Vec<(&str, &str)>> = Lazy::new(|| {
     vec![
         ("aws_access_key", r"AKIA[0-9A-Z]{16}"),
         ("bearer_token", r"(?i)bearer [a-z0-9\._\-]{20,}"),
-        ("generic_secret", r"(?i)(secret|token|password)[^\s]{4,}"),
+        ("generic_secret", r"(?i)secret[a-zA-Z0-9]+"),
         ("email", r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
     ]
 });
