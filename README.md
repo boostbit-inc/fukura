@@ -42,14 +42,35 @@ cargo install --path .
 
 The binary installs as `fukura` and a convenience alias `fuku` is provided.
 
-## Quickstart
+## 🚀 Quickstart
+
+### Automatic Error Capture (Recommended)
 
 ```bash
-fukura init                              # initialise .fukura/
+fukura init                              # Initialize with automatic daemon startup
+# Now just develop normally - Fukura automatically captures errors and solutions!
+
+# After 5 minutes of inactivity, sessions become auto-generated notes
+fukura search "cargo build error"        # Find auto-generated solutions
+fukura view <auto-note-id>               # View detailed error + solution notes
+```
+
+### Manual Usage (Traditional)
+
+```bash
+fukura init --no-daemon                  # Initialize without auto-daemon
 fukura add --title "Proxy deploy"        # capture a note (stdin/editor/file)
 fukura search "proxy timeout" --tui      # multi-pane TUI; Tab switches panes
-fukura open <id>                          # render as HTML in your browser
-fukura push <id> --remote https://hub     # REST push/pull endpoints (future hub)
+fukura open <id>                         # render as HTML in your browser
+fukura push <id> --remote https://hub    # REST push/pull endpoints (future hub)
+```
+
+### Daemon Management
+
+```bash
+fukura daemon --status                   # Check daemon status
+fukura monitor --auto-start              # Auto-start daemon for current directory
+fukura hook install                      # Install shell hooks for error capture
 ```
 
 ## Repository layout
@@ -76,12 +97,28 @@ fukura push <id> --remote https://hub     # REST push/pull endpoints (future hub
   5. uploads artifacts and publishes the GitHub Release via `cargo dist upload` (uses the built-in `GITHUB_TOKEN`).
 - `.github/workflows/site-deploy.yml` optionally pings `boostbit-inc/fukura-site` to redeploy `fukura.dev`.
 
-## Development
+## 🛠️ Development
 
 ```bash
+# Format code
 cargo fmt
+
+# Lint code
 cargo clippy --all-targets --all-features
+
+# Run all tests (including GitHub Actions tests)
 cargo test
+
+# Run specific test suites
+cargo test --test github_actions
+cargo test --test integration
+cargo test --test performance
+
+# Security audit
+cargo audit
+
+# License check
+cargo deny check
 ```
 
 To build release artifacts locally:

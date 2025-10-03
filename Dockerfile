@@ -24,8 +24,10 @@ COPY benches ./benches
 COPY tests ./tests
 COPY dist.toml ./dist.toml
 COPY installers ./installers
-COPY scripts ./scripts
 COPY deny.toml ./deny.toml
+
+# Copy scripts directory (may not exist)
+COPY scripts ./scripts
 
 # Build the application
 RUN cargo build --release

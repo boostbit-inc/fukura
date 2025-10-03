@@ -200,7 +200,6 @@ impl TerminalIntegration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_directory_monitor_creation() {

@@ -1,103 +1,236 @@
 # Getting Started with Fukura
 
-Fukura is a powerful CLI tool for capturing and searching recurring error fixes in a content-addressable store. This guide will help you get up and running quickly.
+Welcome to Fukura! This guide will help you get up and running with Fukura's intelligent error capture and knowledge management system.
 
-## What is Fukura?
+## 🚀 Installation
 
-Fukura helps developers and teams:
-- **Capture** recurring error fixes and solutions
-- **Store** them in a searchable knowledge base
-- **Retrieve** solutions quickly when similar issues arise
-- **Share** knowledge across team members
+### Option 1: Install from Source
 
-## Installation
+```bash
+git clone https://github.com/boostbit-inc/fukura.git
+cd fukura
+cargo build --release
+```
 
-### Option 1: Using Cargo (Recommended)
+### Option 2: Install via Cargo
+
 ```bash
 cargo install fukura
 ```
 
-### Option 2: Using Docker
-```bash
-docker pull fukura/fukura:latest
-```
-
-### Option 3: Download Binary
-Download the latest release from [GitHub Releases](https://github.com/boostbit-inc/fukura/releases).
-
-## Quick Start
-
-### 1. Initialize a Repository
-```bash
-fukura init
-```
-
-This creates a `.fukura` directory in your current location to store your knowledge base.
-
-### 2. Add Your First Note
-```bash
-fukura add
-```
-
-Follow the interactive prompts to add a solution to your knowledge base.
-
-### 3. Search for Solutions
-```bash
-fukura search "database connection error"
-```
-
-### 4. List All Notes
-```bash
-fukura list
-```
-
-## Basic Workflow
-
-1. **Encounter an Error**: When you solve a recurring problem
-2. **Capture the Solution**: Use `fukura add` to store it
-3. **Tag and Categorize**: Add relevant tags for easy discovery
-4. **Search When Needed**: Use `fukura search` to find similar solutions
-
-## Example: Adding a Solution
+### Option 3: Using Docker
 
 ```bash
-$ fukura add
-Title: Fix PostgreSQL connection timeout
-Body: 
-When PostgreSQL connections timeout, check:
-1. Network connectivity to database server
-2. Database server load and capacity
-3. Connection pool settings
-4. Firewall rules
-
-Solution:
-- Increase connection timeout in pg_hba.conf
-- Adjust connection pool max_connections
-- Check network latency
-
-Tags: postgresql, database, connection, timeout
-Privacy: private
+docker run -v $(pwd):/workspace ghcr.io/boostbit-inc/fukura:latest init
 ```
 
-## Configuration
+## 🎯 Automatic Error Capture (Recommended)
 
-Fukura uses a configuration file at `~/.fukura/config.toml`. You can customize:
+### 1. Initialize with Automatic Daemon
 
-- Default privacy settings
-- Editor preferences
-- Search behavior
-- Output formatting
+```bash
+fuku init
+```
 
-See [Configuration Guide](./configuration.md) for details.
+This command:
+- Creates a `.fukura/` directory
+- Starts the background daemon automatically
+- Installs shell hooks for error capture
+- Begins monitoring your development environment
 
-## Next Steps
+### 2. Develop Normally
 
-- [Configuration Guide](./configuration.md) - Customize Fukura for your workflow
-- [Command Reference](./commands.md) - Complete command documentation
-- [Troubleshooting](./troubleshooting.md) - Common issues and solutions
+Just work on your projects as usual! Fukura automatically captures:
 
-## Getting Help
+- **Commands**: All shell commands with exit codes
+- **Errors**: Stderr output and error messages  
+- **Context**: Git branch, working directory, environment
+- **Solutions**: Successful commands that resolved issues
 
-- Check the [Troubleshooting Guide](./troubleshooting.md)
-- Search existing issues on [GitHub](https://github.com/boostbit-inc/fukura/issues)
-- Create a new issue if you can't find a solution
+### 3. View Auto-Generated Notes
+
+After 5 minutes of inactivity, sessions automatically become notes:
+
+```bash
+# Search for auto-generated solutions
+fuku search "cargo build error"
+
+# View specific auto-generated notes
+fuku view <auto-note-id>
+
+# Start web server for better UI
+fuku serve
+```
+
+## 🔧 Manual Usage (Traditional)
+
+If you prefer manual control:
+
+### 1. Initialize Without Auto-Daemon
+
+```bash
+fuku init --no-daemon
+```
+
+### 2. Add Notes Manually
+
+```bash
+fuku add --title "My First Note"
+```
+
+You'll be prompted to enter the note body, or you can use flags:
+
+```bash
+fuku add --title "Rust Error Fix" --body "How to fix this Rust error" --tags rust,error,fix
+```
+
+### 3. Search and View
+
+```bash
+fuku search "rust error"
+fuku view <note-id>
+```
+
+## 🎛️ Daemon Management
+
+### Check Daemon Status
+
+```bash
+fuku daemon --status
+```
+
+### Manual Daemon Control
+
+```bash
+# Start daemon in foreground
+fuku daemon --foreground
+
+# Auto-start daemon for current directory
+fuku monitor --auto-start
+
+# Check monitoring status
+fuku monitor --status
+```
+
+### Shell Integration
+
+```bash
+# Install shell hooks
+fuku hook install
+
+# Check hook status
+fuku hook status
+
+# Remove hooks
+fuku hook uninstall
+```
+
+## 📊 Understanding Auto-Generated Notes
+
+Auto-generated notes have this structure:
+
+```markdown
+# Auto-Captured: cargo build error
+
+**Session Duration:** 120 seconds
+**Working Directory:** /home/user/my-project
+**Git Branch:** feature/new-feature
+
+## Errors Encountered
+- **stderr**: error[E0433]: failed to resolve: use of undeclared type
+
+## Solution Steps
+1. `cargo clean`
+2. `cargo build`
+
+## All Commands
+1. ❌ `cargo build`
+2. ✅ `cargo clean`
+3. ✅ `cargo build`
+
+Tags: [auto-captured, rust, cargo, build]
+```
+
+## 🔍 Advanced Features
+
+### Tags
+
+Auto-generated notes include intelligent tags:
+- Technology tags: `rust`, `docker`, `git`, `python`
+- Error type tags: `permissions`, `network`, `memory`
+- Context tags: `auto-captured`, `session`
+
+### Links
+
+Link notes together:
+
+```bash
+fuku add --title "Related Note" --body "This links to the Rust error fix" --links <note-id>
+```
+
+### Privacy
+
+Set note privacy levels:
+
+```bash
+fuku add --title "Private Note" --body "Sensitive information" --privacy private
+```
+
+### Browser Integration
+
+Open notes in your browser:
+
+```bash
+fuku open <note-id>
+```
+
+Works cross-platform with automatic browser detection.
+
+## 🎯 Best Practices
+
+### For Automatic Capture
+
+1. **Initialize once per project**: Run `fuku init` in your project root
+2. **Work normally**: Just develop - Fukura captures everything automatically
+3. **Review periodically**: Check `fuku search` to see captured solutions
+4. **Tag manually**: Add custom tags to important auto-generated notes
+
+### For Manual Usage
+
+1. **Be descriptive**: Use clear titles and detailed bodies
+2. **Use tags**: Organize with relevant tags
+3. **Link related notes**: Create knowledge networks
+4. **Regular sync**: Use `fuku push` to backup important notes
+
+## 🚨 Troubleshooting
+
+### Daemon Issues
+
+```bash
+# Check if daemon is running
+fuku daemon --status
+
+# Restart daemon
+fuku daemon --stop
+fuku daemon --foreground
+
+# Check shell hooks
+fuku hook status
+```
+
+### Permission Issues
+
+```bash
+# Make sure .fukura directory is writable
+chmod -R 755 .fukura/
+
+# Check file permissions
+ls -la .fukura/
+```
+
+## 📚 Next Steps
+
+- Explore the [Browser Integration](browser-integration.md) guide
+- Check out the [Architecture Overview](../developer/architecture.md)
+- Learn about [Contributing](../CONTRIBUTING.md)
+- Read the [Security Policy](../SECURITY.md)

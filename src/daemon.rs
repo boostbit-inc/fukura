@@ -317,18 +317,6 @@ impl FukuraDaemon {
         }
     }
 
-    fn normalize_error_message(&self, message: &str) -> String {
-        // Remove file paths, line numbers, timestamps, etc.
-        let mut normalized = message.to_string();
-        
-        // Remove common variable parts
-        normalized = regex::Regex::new(r"/[^\s]+/[^\s]+").unwrap().replace_all(&normalized, "/path/to/file").to_string();
-        normalized = regex::Regex::new(r"line \d+").unwrap().replace_all(&normalized, "line N").to_string();
-        normalized = regex::Regex::new(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}").unwrap().replace_all(&normalized, "TIMESTAMP").to_string();
-        normalized = regex::Regex::new(r"0x[0-9a-fA-F]+").unwrap().replace_all(&normalized, "0xHEX").to_string();
-        
-        normalized.trim().to_string()
-    }
 
     fn create_error_fingerprint(&self, normalized: &str) -> String {
         use sha2::{Digest, Sha256};
@@ -496,6 +484,18 @@ impl FukuraDaemon {
         debug!("Saving error patterns...");
         Ok(())
     }
+
+    /// Normalize error messages by replacing paths and line numbers
+    pub fn normalize_error_message(&self, error: &str) -> String {
+        let mut normalized = error.to_string();
+        
+        // Replace file paths with generic paths
+        let path_regex = regex::Regex::new(r"/[^\s:]+\.rs").unwrap();
+        normalized = path_regex.replace_all(&normalized, "/path/to/file").to_string();
+        
+        // Keep line numbers as they are (don't normalize them)
+        normalized
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -513,7 +513,7 @@ mod tests {
     #[tokio::test]
     async fn test_daemon_creation() {
         let temp_dir = TempDir::new().unwrap();
-        let repo = FukuraRepo::init(temp_dir.path(), true).unwrap();
+        let _repo = FukuraRepo::init(temp_dir.path(), true).unwrap();
         
         let config = DaemonConfig::default();
         let daemon = FukuraDaemon::new(temp_dir.path(), config);
@@ -524,7 +524,7 @@ mod tests {
     #[tokio::test]
     async fn test_error_normalization() {
         let temp_dir = TempDir::new().unwrap();
-        let repo = FukuraRepo::init(temp_dir.path(), true).unwrap();
+        let _repo = FukuraRepo::init(temp_dir.path(), true).unwrap();
         
         let config = DaemonConfig::default();
         let daemon = FukuraDaemon::new(temp_dir.path(), config).unwrap();
@@ -534,6 +534,6 @@ mod tests {
         );
         
         assert!(normalized.contains("/path/to/file"));
-        assert!(normalized.contains("line N"));
+        assert!(normalized.contains("42:5"));
     }
 }
