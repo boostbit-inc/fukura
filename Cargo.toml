@@ -27,7 +27,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 tantivy = { version = "0.25", default-features = false, features = ["mmap", "stopwords"] }
 thiserror = "2.0"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "fs", "process"] }
 toml = "0.9"
 uuid = { version = "1.7", features = ["v4", "serde"] }
 colored = "3.0"

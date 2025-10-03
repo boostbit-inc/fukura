@@ -92,6 +92,12 @@ pub enum Commands {
         #[command(subcommand)]
         command: ConfigCommand,
     },
+
+    /// Start the Fukura daemon for automatic error capture.
+    Daemon(DaemonCommand),
+
+    /// Install or uninstall shell hooks.
+    Hook(HookCommand),
 }
 
 #[derive(Debug, Args)]
@@ -309,6 +315,39 @@ pub struct RedactCommand {
     unset: Vec<String>,
 }
 
+#[derive(Debug, Args)]
+pub struct DaemonCommand {
+    #[arg(long, help = "Start the daemon in foreground")]
+    foreground: bool,
+
+    #[arg(long, help = "Stop the daemon")]
+    stop: bool,
+
+    #[arg(long, help = "Show daemon status")]
+    status: bool,
+
+    #[arg(long, help = "Record a command execution")]
+    record_command: Option<String>,
+
+    #[arg(long, help = "Record an error message")]
+    record_error: Option<String>,
+
+    #[arg(long, help = "Check for solutions to current session")]
+    check_solutions: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct HookCommand {
+    #[arg(long, help = "Install shell hooks")]
+    install: bool,
+
+    #[arg(long, help = "Uninstall shell hooks")]
+    uninstall: bool,
+
+    #[arg(long, help = "Check if hooks are installed")]
+    status: bool,
+}
+
 pub async fn run() -> Result<()> {
     let cli = Cli::parse();
     match &cli.command {
@@ -322,6 +361,8 @@ pub async fn run() -> Result<()> {
         Commands::Push(cmd) => handle_push(&cli, cmd).await?,
         Commands::Pull(cmd) => handle_pull(&cli, cmd).await?,
         Commands::Config { command } => handle_config(&cli, command)?,
+        Commands::Daemon(cmd) => handle_daemon(&cli, cmd).await?,
+        Commands::Hook(cmd) => handle_hook(&cli, cmd)?,
     }
     Ok(())
 }
@@ -366,12 +407,24 @@ fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
         let mut buf = String::new();
         io::stdin().read_to_string(&mut buf)?;
         buf
+    } else if cmd.no_editor {
+        // Interactive inline input without external editor
+        get_interactive_body()?
     } else {
         String::new()
     };
 
     if body.trim().is_empty() && !cmd.no_editor {
-        if let Some(buffer) =
+        // Try interactive input first, fallback to editor if needed
+        if let Ok(interactive_body) = get_interactive_body() {
+            if !interactive_body.trim().is_empty() {
+                body = interactive_body;
+            } else if let Some(buffer) =
+                Editor::new().edit("# jot down the diagnosis, commands, or code snippets here\n")?
+            {
+                body = buffer;
+            }
+        } else if let Some(buffer) =
             Editor::new().edit("# jot down the diagnosis, commands, or code snippets here\n")?
         {
             body = buffer;
@@ -653,6 +706,40 @@ fn parse_redaction_entry(entry: &str) -> Result<(String, String)> {
         "Redaction pattern cannot be empty"
     );
     Ok((key.trim().to_string(), value.to_string()))
+}
+
+fn get_interactive_body() -> Result<String> {
+    use dialoguer::theme::ColorfulTheme;
+    use dialoguer::Input;
+    
+    println!("📝 Enter your note content (press Ctrl+D or Ctrl+Z when finished):");
+    
+    let mut body = String::new();
+    loop {
+        match Input::<String>::with_theme(&ColorfulTheme::default())
+            .with_prompt(">")
+            .allow_empty(true)
+            .interact_text()
+        {
+            Ok(line) => {
+                if line.trim().is_empty() {
+                    break;
+                }
+                body.push_str(&line);
+                body.push('\n');
+            }
+            Err(_) => {
+                // User pressed Ctrl+D/Ctrl+Z or cancelled
+                break;
+            }
+        }
+    }
+    
+    if body.trim().is_empty() {
+        bail!("Note body cannot be empty");
+    }
+    
+    Ok(body.trim().to_string())
 }
 
 fn determine_remote(repo: &FukuraRepo, override_url: Option<&str>) -> Result<String> {
@@ -1464,4 +1551,108 @@ fn format_privacy(privacy: &Privacy) -> String {
         Privacy::Org => "org".into(),
         Privacy::Public => "public".into(),
     }
+}
+
+async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let config = crate::daemon::DaemonConfig::default();
+    let daemon = crate::daemon::FukuraDaemon::new(repo.root(), config)?;
+    
+    if cmd.status {
+        // Show daemon status
+        if !cli.quiet {
+            println!("{} Daemon status: {}", "📊".blue(), "Not implemented yet");
+        }
+    } else if cmd.stop {
+        // Stop daemon
+        daemon.stop().await?;
+        if !cli.quiet {
+            println!("{} Daemon stopped", "🛑".red());
+        }
+    } else if cmd.record_command.is_some() || cmd.record_error.is_some() || cmd.check_solutions {
+        // Handle individual commands
+        let session_id = "cli_session";
+        
+        if let Some(command) = &cmd.record_command {
+            let exit_code = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(command)
+                .status()
+                .map(|s| s.code().unwrap_or(1))
+                .unwrap_or(1);
+            
+            daemon.record_command(session_id, command, Some(exit_code), ".").await?;
+        }
+        
+        if let Some(error) = &cmd.record_error {
+            daemon.record_error(session_id, error, "cli").await?;
+        }
+        
+        if cmd.check_solutions {
+            let solutions = daemon.check_solutions(session_id).await?;
+            if !solutions.is_empty() {
+                if !cli.quiet {
+                    println!("{} Found {} potential solutions:", "💡".yellow(), solutions.len());
+                    for solution in solutions {
+                        println!("  - {} (confidence: {:.1}%)", 
+                                solution.solution, solution.confidence * 100.0);
+                    }
+                }
+            } else {
+                if !cli.quiet {
+                    println!("{} No solutions found", "❌".red());
+                }
+            }
+        }
+    } else {
+        // Start daemon
+        if cmd.foreground {
+            if !cli.quiet {
+                println!("{} Starting daemon in foreground...", "🚀".green());
+            }
+            daemon.start().await?;
+            
+            // Keep running until interrupted
+            tokio::signal::ctrl_c().await?;
+            daemon.stop().await?;
+        } else {
+            // Start daemon in background (not implemented yet)
+            if !cli.quiet {
+                println!("{} Background daemon not implemented yet", "⚠️".yellow());
+                println!("{} Use --foreground to start daemon in foreground", "💡".blue());
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+fn handle_hook(cli: &Cli, cmd: &HookCommand) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let hook_manager = crate::hooks::HookManager::new(repo.root());
+    
+    if cmd.status {
+        let installed = hook_manager.are_hooks_installed()?;
+        if !cli.quiet {
+            if installed {
+                println!("{} Shell hooks are installed", "✅".green());
+            } else {
+                println!("{} Shell hooks are not installed", "❌".red());
+            }
+        }
+    } else if cmd.uninstall {
+        hook_manager.uninstall_hooks()?;
+    } else if cmd.install {
+        hook_manager.install_hooks()?;
+    } else {
+        // Show help
+        if !cli.quiet {
+            println!("{} Hook management commands:", "🔧".blue());
+            println!("  --install   Install shell hooks");
+            println!("  --uninstall Remove shell hooks");
+            println!("  --status    Check hook installation status");
+        }
+    }
+    
+    Ok(())
 }

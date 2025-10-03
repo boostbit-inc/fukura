@@ -1,45 +1,50 @@
 # Multi-stage build for Fukura CLI
-FROM rust:1.90-alpine AS builder
+FROM rust:1.90 AS builder
 
-# Install build dependencies
-RUN apk add --no-cache musl-dev pkgconfig
-
-# Create app directory
 WORKDIR /app
 
-# Copy manifests
+# Install system dependencies for cross-compilation (if needed)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Cargo.toml and Cargo.lock to leverage Docker cache
 COPY Cargo.toml Cargo.lock ./
 
-# Copy source code
-COPY src ./src
+# Create a dummy src/main.rs to cache dependencies
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+RUN cargo build --release
+RUN rm -rf src
 
-# Build for release
+# Copy the actual source code
+COPY src ./src
+COPY benches ./benches
+COPY tests ./tests
+COPY dist.toml ./dist.toml
+COPY installers ./installers
+COPY scripts ./scripts
+COPY deny.toml ./deny.toml
+
+# Build the application
 RUN cargo build --release
 
-# Runtime stage
-FROM alpine:latest
+# --- Final stage ---
+FROM debian:stable-slim
 
-# Install runtime dependencies
-RUN apk add --no-cache ca-certificates
+# Install runtime dependencies if any
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN addgroup -g 1001 -S fukura && \
-    adduser -u 1001 -S fukura -G fukura
+WORKDIR /app
 
-# Copy binary from builder stage
-COPY --from=builder /app/target/release/fukura /usr/local/bin/fukura
-COPY --from=builder /app/target/release/fuku /usr/local/bin/fuku
+# Copy the built binaries from the builder stage
+COPY --from=builder /app/target/release/fukura ./fukura
+COPY --from=builder /app/target/release/fuku ./fuku
 
-# Make binaries executable
-RUN chmod +x /usr/local/bin/fukura /usr/local/bin/fuku
-
-# Switch to non-root user
-USER fukura
-
-# Set working directory
-WORKDIR /home/fukura
-
-# Default command
-ENTRYPOINT ["fukura"]
+# Run the application
+ENTRYPOINT ["./fukura"]
 CMD ["--help"]
 
