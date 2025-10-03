@@ -1,0 +1,25 @@
+# Security and license compliance configuration
+[licenses]
+default = "deny"
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+]
+copyleft = "warn"
+allow-osi-fsf-free = "neither"
+default-copyleft = "deny"
+
+[licenses.clarify]
+"serde_json" = { version = "*", expression = "MIT OR Apache-2.0" }
+
+[bans]
+multiple-versions = "deny"
+wildcards = "allow"
+
+[advisories]
+ignore = []
+severity-threshold = "medium"
+
