@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  fukura:
+    build: .
+    container_name: fukura-cli
+    volumes:
+      - ./data:/home/fukura/data
+      - ./config:/home/fukura/.config/fukura
+    environment:
+      - RUST_LOG=info
+    working_dir: /home/fukura
+    command: ["fukura", "init"]
+    stdin_open: true
+    tty: true
+
+  fukura-server:
+    build: .
+    container_name: fukura-server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/home/fukura/data
+      - ./config:/home/fukura/.config/fukura
+    environment:
+      - RUST_LOG=info
+    command: ["fukura", "serve", "--host", "0.0.0.0", "--port", "8080"]
+    depends_on:
+      - fukura
+
