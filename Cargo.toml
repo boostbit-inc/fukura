@@ -2,36 +2,62 @@
 name = "fukura"
 version = "0.1.0"
 edition = "2021"
+description = "A Rust CLI for capturing recurring error fixes in a content-addressable store"
+license = "Apache-2.0"
+repository = "https://github.com/boostbit-inc/fukura"
+homepage = "https://fukura.dev"
+documentation = "https://docs.rs/fukura"
+keywords = ["cli", "knowledge-base", "search", "troubleshooting", "documentation"]
+categories = ["command-line-utilities", "development-tools"]
+readme = "README.md"
+rust-version = "1.70"
 
 [dependencies]
 anyhow = "1.0"
-axum = { version = "0.7", features = ["json"] }
+axum = { version = "0.8", features = ["json"] }
 chrono = { version = "0.4", features = ["serde"] }
 ciborium = "0.2"
 clap = { version = "4.5", features = ["derive"] }
-directories = "5.0"
+directories = "6.0"
 flate2 = { version = "1.0", features = ["zlib"] }
 once_cell = "1.19"
-reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
-tantivy = { version = "0.19", default-features = false, features = ["mmap", "stopwords"] }
-thiserror = "1.0"
+tantivy = { version = "0.25", default-features = false, features = ["mmap", "stopwords"] }
+thiserror = "2.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
-toml = "0.8"
+toml = "0.9"
 uuid = { version = "1.7", features = ["v4", "serde"] }
-colored = "2.1"
-crossterm = "0.27"
-ratatui = "0.26"
+colored = "3.0"
+crossterm = "0.29"
+ratatui = "0.29"
 fs2 = "0.4"
 tempfile = "3.10"
 hex = "0.4"
-dialoguer = { version = "0.11", features = ["editor"] }
-comfy-table = "=7.1.4"
+dialoguer = { version = "0.12", features = ["editor"] }
+comfy-table = "7.2"
 open = "5.1"
 regex = "1.10"
 atty = "0.2"
-pulldown-cmark = "0.9"
+pulldown-cmark = "0.13"
 html-escape = "0.2"
 tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "3.10"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "search_benchmark"
+harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.bench]
+debug = true

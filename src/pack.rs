@@ -59,7 +59,7 @@ pub fn pack_objects(repo: &FukuraRepo, prune: bool) -> Result<PackReport> {
         if length > u32::MAX as usize {
             bail!("Object {} is too large to pack", object_id);
         }
-        let offset = pack_file.seek(SeekFrom::Current(0))?;
+        let offset = pack_file.stream_position()?;
         pack_file.write_all(object_id.as_bytes())?;
         pack_file.write_all(&(length as u32).to_le_bytes())?;
         pack_file.write_all(&data)?;

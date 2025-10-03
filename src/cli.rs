@@ -340,13 +340,9 @@ fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
     let mut body = if let Some(explicit) = &cmd.body {
         explicit.clone()
     } else if let Some(path) = &cmd.file {
-        fs::read_to_string(&path)
+        fs::read_to_string(path)
             .with_context(|| format!("Failed to read body from {}", path.display()))?
-    } else if cmd.stdin {
-        let mut buf = String::new();
-        io::stdin().read_to_string(&mut buf)?;
-        buf
-    } else if !atty::is(atty::Stream::Stdin) {
+    } else if cmd.stdin || !atty::is(atty::Stream::Stdin) {
         let mut buf = String::new();
         io::stdin().read_to_string(&mut buf)?;
         buf
@@ -689,10 +685,10 @@ fn render_note(record: &NoteRecord) {
             println!("  - {}", link);
         }
     }
-    println!("");
+    println!();
     println!("{}", note.body);
     if !note.meta.is_empty() {
-        println!("");
+        println!();
         println!("{}", "📌 Meta".bold());
         for (key, value) in &note.meta {
             println!("  {} = {}", key.cyan(), value);
@@ -898,7 +894,7 @@ fn render_note_html(record: &NoteRecord, theme: &str) -> Result<String> {
         updated = record.note.updated_at.format("%Y-%m-%d %H:%M UTC"),
         created = record.note.created_at.format("%Y-%m-%d %H:%M UTC"),
         author = html_escape::encode_text(&record.note.author.name),
-        privacy = format!("{}", format_privacy(&record.note.privacy)).to_uppercase(),
+        privacy = format_privacy(&record.note.privacy).to_string().to_uppercase(),
         object_id = record.object_id,
     ))
 }
@@ -1006,7 +1002,7 @@ fn run_search_tui(repo: &FukuraRepo, query: &str, sort: SearchSort, limit: usize
         }
 
         terminal.draw(|frame| {
-            let size = frame.size();
+            let size = frame.area();
             let columns = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(28), Constraint::Percentage(72)])

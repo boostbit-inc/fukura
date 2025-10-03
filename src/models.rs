@@ -4,18 +4,13 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, clap::ValueEnum, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Privacy {
+    #[default]
     Private,
     Org,
     Public,
-}
-
-impl Default for Privacy {
-    fn default() -> Self {
-        Privacy::Private
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

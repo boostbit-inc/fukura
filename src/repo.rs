@@ -24,10 +24,8 @@ pub struct FukuraRepo {
 impl FukuraRepo {
     pub fn init(path: &Path, force: bool) -> Result<Self> {
         let dot_dir = path.join(".fukura");
-        if dot_dir.exists() {
-            if !force {
-                bail!("Repository already initialized at {}", path.display());
-            }
+        if dot_dir.exists() && !force {
+            bail!("Repository already initialized at {}", path.display());
         }
         fs::create_dir_all(path)?;
         let repo = Self {
@@ -35,8 +33,7 @@ impl FukuraRepo {
             dot_dir,
         };
         repo.ensure_layout()?;
-        let mut cfg = FukuraConfig::default();
-        cfg.version = 1;
+        let cfg = FukuraConfig { version: 1, ..Default::default() };
         cfg.save(&repo.config_path())?;
         Ok(repo)
     }

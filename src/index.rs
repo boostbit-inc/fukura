@@ -7,8 +7,8 @@ use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use tantivy::collector::TopDocs;
 use tantivy::query::{AllQuery, QueryParser};
-use tantivy::schema::{Field, Schema, SchemaBuilder, FAST, STORED, STRING, TEXT};
-use tantivy::{DocAddress, Document, Index};
+use tantivy::schema::{Field, Schema, SchemaBuilder, Value, FAST, STORED, STRING, TEXT};
+use tantivy::{DocAddress, Index, TantivyDocument};
 
 use crate::models::NoteRecord;
 use crate::repo::FukuraRepo;
@@ -76,14 +76,14 @@ impl SearchIndex {
 
     pub fn add_note(&self, record: &NoteRecord) -> Result<()> {
         let mut writer = self.index.writer(50_000_000)?;
-        let mut document = Document::default();
+        let mut document = TantivyDocument::new();
         document.add_text(self.fields.object_id, &record.object_id);
         document.add_text(self.fields.title, &record.note.title);
         document.add_text(self.fields.body, &record.note.body);
         for tag in &record.note.tags {
             document.add_text(self.fields.tags, tag);
         }
-        document.add_text(self.fields.summary, &make_summary(&record.note.body));
+        document.add_text(self.fields.summary, make_summary(&record.note.body));
         document.add_text(self.fields.author, &record.note.author.name);
         document.add_text(self.fields.privacy, format_privacy(&record.note.privacy));
         document.add_i64(self.fields.updated_at, record.note.updated_at.timestamp());
@@ -111,30 +111,30 @@ impl SearchIndex {
         let top_docs = searcher.search(query.as_ref(), &TopDocs::with_limit(limit))?;
         let mut hits = Vec::new();
         for (score, doc_address) in top_docs {
-            let retrieved = searcher.doc(doc_address)?;
+            let retrieved: TantivyDocument = searcher.doc(doc_address)?;
             let object_id = retrieved
                 .get_first(self.fields.object_id)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string();
             let title = retrieved
                 .get_first(self.fields.title)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string();
             let tags = retrieved
                 .get_all(self.fields.tags)
-                .filter_map(|v| v.as_text())
+                .filter_map(|v| v.as_str())
                 .map(|s| s.to_string())
                 .collect::<Vec<_>>();
             let summary = retrieved
                 .get_first(self.fields.summary)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string();
             let author = retrieved
                 .get_first(self.fields.author)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string();
             let likes = retrieved
@@ -147,7 +147,7 @@ impl SearchIndex {
                 .unwrap_or_default();
             let privacy = retrieved
                 .get_first(self.fields.privacy)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string();
             let updated_at = Utc
@@ -183,9 +183,9 @@ impl SearchIndex {
             let max_doc = segment_reader.max_doc();
             for doc_id in 0..max_doc {
                 let address = DocAddress::new(segment_ord as u32, doc_id);
-                let retrieved = searcher.doc(address)?;
+                let retrieved: TantivyDocument = searcher.doc(address)?;
                 for value in retrieved.get_all(self.fields.tags) {
-                    if let Some(text) = value.as_text() {
+                    if let Some(text) = value.as_str() {
                         unique.insert(text.to_string());
                     }
                 }
