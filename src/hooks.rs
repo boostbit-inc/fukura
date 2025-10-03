@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Shell hook installation and management
 pub struct HookManager {
-    repo_path: std::path::PathBuf,
+    repo_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -33,6 +33,10 @@ impl HookManager {
             ShellType::Fish => self.install_fish_hooks(),
             ShellType::PowerShell => self.install_powershell_hooks(),
         }
+    }
+
+    pub fn config_file(&self) -> PathBuf {
+        self.repo_path.join(".fukura").join("hooks.toml")
     }
 
     /// Uninstall hooks
