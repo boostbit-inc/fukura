@@ -98,6 +98,9 @@ pub enum Commands {
 
     /// Install or uninstall shell hooks.
     Hook(HookCommand),
+
+    /// Monitor directories and auto-start daemons.
+    Monitor(MonitorCommand),
 }
 
 #[derive(Debug, Args)]
@@ -111,6 +114,12 @@ pub struct InitCommand {
 
     #[arg(long, help = "Re-initialize even if the directory exists")]
     force: bool,
+
+    #[arg(long, help = "Skip automatic daemon startup")]
+    no_daemon: bool,
+
+    #[arg(long, help = "Skip automatic shell hook installation")]
+    no_hooks: bool,
 }
 
 #[derive(Debug, Args)]
@@ -348,6 +357,21 @@ pub struct HookCommand {
     status: bool,
 }
 
+#[derive(Debug, Args)]
+pub struct MonitorCommand {
+    #[arg(long, help = "Start directory monitoring")]
+    start: bool,
+
+    #[arg(long, help = "Stop directory monitoring")]
+    stop: bool,
+
+    #[arg(long, help = "Check monitoring status")]
+    status: bool,
+
+    #[arg(long, help = "Auto-start daemon for current directory")]
+    auto_start: bool,
+}
+
 pub async fn run() -> Result<()> {
     let cli = Cli::parse();
     match &cli.command {
@@ -363,6 +387,7 @@ pub async fn run() -> Result<()> {
         Commands::Config { command } => handle_config(&cli, command)?,
         Commands::Daemon(cmd) => handle_daemon(&cli, cmd).await?,
         Commands::Hook(cmd) => handle_hook(&cli, cmd)?,
+        Commands::Monitor(cmd) => handle_monitor(&cli, cmd).await?,
     }
     Ok(())
 }
@@ -374,17 +399,65 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
         cmd.path.clone()
     };
     let repo = FukuraRepo::init(&path, cmd.force)?;
+    
     if !cli.quiet {
         println!(
             "{} Initialized Fukura vault at {}",
             "✨".bold().cyan(),
             repo.root().display()
         );
+    }
+    
+    // Auto-start daemon after init
+    if !cmd.no_daemon {
+        if !cli.quiet {
+            println!(
+                "{} Starting automatic error capture daemon...",
+                "🚀".green()
+            );
+        }
+        
+        // Start daemon in background
+        crate::daemon_service::start_background_daemon(&repo)?;
+        
+        if !cli.quiet {
+            println!(
+                "{} Automatic error capture is now active!",
+                "🎯".blue()
+            );
+            println!(
+                "{} Use 'fuku daemon --status' to check daemon status",
+                "💡".cyan()
+            );
+        }
+    }
+    
+    // Install shell hooks automatically
+    if !cmd.no_hooks {
+        let hook_manager = crate::hooks::HookManager::new(repo.root());
+        if let Err(e) = hook_manager.install_hooks() {
+            if !cli.quiet {
+                println!(
+                    "{} Warning: Could not install shell hooks: {}",
+                    "⚠️".yellow(),
+                    e
+                );
+            }
+        } else if !cli.quiet {
+            println!(
+                "{} Shell hooks installed successfully",
+                "✅".green()
+            );
+        }
+    }
+    
+    if !cli.quiet {
         println!(
             "{}  Next: fuku add --title 'Proxy install failure'",
             "›".dimmed()
         );
     }
+    
     Ok(())
 }
 
@@ -1651,6 +1724,81 @@ fn handle_hook(cli: &Cli, cmd: &HookCommand) -> Result<()> {
             println!("  --install   Install shell hooks");
             println!("  --uninstall Remove shell hooks");
             println!("  --status    Check hook installation status");
+        }
+    }
+    
+    Ok(())
+}
+
+async fn handle_monitor(cli: &Cli, cmd: &MonitorCommand) -> Result<()> {
+    if cmd.auto_start {
+        // Auto-start daemon for current directory
+        let cwd = std::env::current_dir()?;
+        let fukura_dir = cwd.join(".fukura");
+        
+        if !fukura_dir.exists() {
+            if !cli.quiet {
+                println!("{} No .fukura directory found in current directory", "❌".red());
+                println!("{} Run 'fuku init' first", "💡".cyan());
+            }
+            return Ok(());
+        }
+        
+        let _repo = FukuraRepo::discover(Some(&cwd))?;
+        let daemon_service = crate::daemon_service::DaemonService::new(&cwd);
+        
+        if !daemon_service.is_running().await {
+            daemon_service.start_background()?;
+            if !cli.quiet {
+                println!("{} Auto-started daemon for {}", "🚀".green(), cwd.display());
+            }
+        } else {
+            if !cli.quiet {
+                println!("{} Daemon already running for {}", "✅".green(), cwd.display());
+            }
+        }
+    } else if cmd.start {
+        // Start directory monitoring
+        if !cli.quiet {
+            println!("{} Starting directory monitoring...", "🔍".blue());
+        }
+        
+        let mut monitor = crate::directory_monitor::DirectoryMonitor::new();
+        monitor.start_monitoring().await?;
+    } else if cmd.stop {
+        // Stop directory monitoring (not implemented yet)
+        if !cli.quiet {
+            println!("{} Directory monitoring stop not implemented yet", "⚠️".yellow());
+        }
+    } else if cmd.status {
+        // Check monitoring status
+        let cwd = std::env::current_dir()?;
+        let fukura_dir = cwd.join(".fukura");
+        
+        if fukura_dir.exists() {
+            let daemon_service = crate::daemon_service::DaemonService::new(&cwd);
+            let is_running = daemon_service.is_running().await;
+            
+            if !cli.quiet {
+                if is_running {
+                    println!("{} Daemon is running for {}", "✅".green(), cwd.display());
+                } else {
+                    println!("{} Daemon is not running for {}", "❌".red(), cwd.display());
+                }
+            }
+        } else {
+            if !cli.quiet {
+                println!("{} No .fukura directory found in current directory", "❌".red());
+            }
+        }
+    } else {
+        // Show help
+        if !cli.quiet {
+            println!("{} Monitor management commands:", "🔧".blue());
+            println!("  --auto-start  Auto-start daemon for current directory");
+            println!("  --start       Start directory monitoring");
+            println!("  --stop        Stop directory monitoring");
+            println!("  --status      Check monitoring status");
         }
     }
     

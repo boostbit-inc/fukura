@@ -3,6 +3,8 @@ pub mod cli;
 pub mod config;
 pub mod config_cmd;
 pub mod daemon;
+pub mod daemon_service;
+pub mod directory_monitor;
 pub mod hooks;
 pub mod index;
 pub mod models;

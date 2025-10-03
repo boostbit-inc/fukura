@@ -12,9 +12,10 @@ use crate::repo::FukuraRepo;
 
 /// Daemon for monitoring and capturing error patterns
 pub struct FukuraDaemon {
-    repo: Arc<FukuraRepo>,
-    sessions: Arc<RwLock<HashMap<String, ActiveSession>>>,
-    error_patterns: Arc<RwLock<HashMap<String, ErrorPattern>>>,
+    pub repo: Arc<FukuraRepo>,
+    pub sessions: Arc<RwLock<HashMap<String, ActiveSession>>>,
+    pub error_patterns: Arc<RwLock<HashMap<String, ErrorPattern>>>,
+    pub repo_path: std::path::PathBuf,
     config: DaemonConfig,
 }
 
@@ -93,6 +94,7 @@ impl FukuraDaemon {
             repo,
             sessions: Arc::new(RwLock::new(HashMap::new())),
             error_patterns: Arc::new(RwLock::new(HashMap::new())),
+            repo_path: repo_path.to_path_buf(),
             config,
         })
     }
