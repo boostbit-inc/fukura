@@ -18,3 +18,4 @@ Cargo.lock
 # Generated files
 *.fop
 *.fop.idx
+.fukura
