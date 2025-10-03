@@ -205,6 +205,26 @@ pub struct OpenCommand {
         default_value = "dark"
     )]
     theme: String,
+
+    #[arg(
+        long,
+        help = "Force opening in browser (skip local server fallback)"
+    )]
+    browser_only: bool,
+
+    #[arg(
+        long,
+        help = "Show URL for manual opening instead of automatic browser opening"
+    )]
+    url_only: bool,
+
+    #[arg(
+        long,
+        value_name = "PORT",
+        help = "Port for local server (when browser opening fails)",
+        default_value = "8080"
+    )]
+    server_port: Option<u16>,
 }
 
 #[derive(Debug, Args)]
@@ -447,16 +467,89 @@ fn handle_open(cli: &Cli, cmd: &OpenCommand) -> Result<()> {
     let record = repo.load_note(&resolved)?;
     let theme = cmd.theme.to_lowercase();
     let html = render_note_html(&record, &theme)?;
-    let file_path = std::env::temp_dir().join(format!("fuku-{}.html", resolved));
-    fs::write(&file_path, html)?;
-    open::that(&file_path)?;
-    if !cli.quiet {
-        println!(
-            "{} Opened {} in your browser",
-            "🌈".magenta(),
-            file_path.display()
-        );
+    let filename = format!("fuku-{}.html", resolved);
+    
+    if cmd.url_only {
+        // Just show the URL for manual opening
+        let file_path = std::env::temp_dir().join(&filename);
+        fs::write(&file_path, html)?;
+        
+        if !cli.quiet {
+            println!(
+                "{} Note saved to: {}",
+                "📁".blue(),
+                file_path.display()
+            );
+            println!(
+                "{} Open this file in your browser manually",
+                "💡".yellow()
+            );
+        }
+        return Ok(());
     }
+    
+    if cmd.browser_only {
+        // Try direct browser opening only
+        let file_path = std::env::temp_dir().join(&filename);
+        fs::write(&file_path, html)?;
+        
+        match crate::browser::BrowserOpener::open(&file_path) {
+            Ok(()) => {
+                if !cli.quiet {
+                    println!(
+                        "{} Opened note in your browser",
+                        "🌈".magenta()
+                    );
+                }
+            }
+            Err(e) => {
+                if !cli.quiet {
+                    println!(
+                        "{} Could not open browser: {}",
+                        "❌".red(),
+                        e
+                    );
+                    println!(
+                        "{} File saved to: {}",
+                        "📁".blue(),
+                        file_path.display()
+                    );
+                }
+                return Err(e);
+            }
+        }
+    } else {
+        // Use smart opening with server fallback
+        match crate::browser::BrowserOpener::open_with_server(&html, &filename) {
+            Ok(()) => {
+                if !cli.quiet {
+                    println!(
+                        "{} Opened note in your browser",
+                        "🌈".magenta()
+                    );
+                }
+            }
+            Err(e) => {
+                // Fallback: save to file and show path
+                let file_path = std::env::temp_dir().join(&filename);
+                fs::write(&file_path, html)?;
+                
+                if !cli.quiet {
+                    println!(
+                        "{} Could not open browser automatically: {}",
+                        "⚠️".yellow(),
+                        e
+                    );
+                    println!(
+                        "{} Please open this file manually: {}",
+                        "📁".blue(),
+                        file_path.display()
+                    );
+                }
+            }
+        }
+    }
+    
     Ok(())
 }
 
@@ -1291,9 +1384,17 @@ fn run_search_tui(repo: &FukuraRepo, query: &str, sort: SearchSort, limit: usize
 
 fn handle_open_inline(record: &NoteRecord) -> Result<()> {
     let html = render_note_html(record, "dark")?;
-    let file_path = std::env::temp_dir().join(format!("fuku-{}.html", record.object_id));
-    fs::write(&file_path, html)?;
-    open::that(&file_path)?;
+    let filename = format!("fuku-{}.html", record.object_id);
+    
+    // Use the new cross-platform browser opener
+    crate::browser::BrowserOpener::open_with_server(&html, &filename)
+        .or_else(|_| {
+            // Fallback: save to file and try direct opening
+            let file_path = std::env::temp_dir().join(&filename);
+            fs::write(&file_path, html)?;
+            crate::browser::BrowserOpener::open(&file_path)
+        })?;
+    
     Ok(())
 }
 
