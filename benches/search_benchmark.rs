@@ -45,7 +45,9 @@ fn create_benchmark_data(repo: &FukuraRepo, count: usize) -> Vec<String> {
     }
 
     // Use batch processing for better performance
-    let records = repo.store_notes_batch(notes).expect("Failed to store notes in batch");
+    let records = repo
+        .store_notes_batch(notes)
+        .expect("Failed to store notes in batch");
     records.into_iter().map(|r| r.object_id).collect()
 }
 

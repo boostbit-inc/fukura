@@ -34,7 +34,7 @@ impl Default for DaemonConfig {
         Self {
             monitor_interval: Duration::from_secs(10), // Reduced frequency for better performance
             session_timeout: Duration::from_secs(600), // 10 minutes - longer timeout
-            max_sessions: 50, // Reduced for better memory usage
+            max_sessions: 50,                          // Reduced for better memory usage
             enable_clipboard_monitoring: false,
             enable_process_monitoring: true,
             error_threshold: 0.7,
@@ -327,7 +327,8 @@ impl FukuraDaemon {
         let mut session_activities: Vec<(String, SystemTime)> = Vec::new();
 
         for (id, session) in sessions_guard.iter() {
-            if now.duration_since(session.last_activity)
+            if now
+                .duration_since(session.last_activity)
                 .unwrap_or(Duration::from_secs(0))
                 >= config.session_timeout
             {
