@@ -45,7 +45,7 @@ fn test_bulk_insert_performance() {
             ),
         );
         repo.store_note(note).expect("Failed to store note");
-        
+
         // Check timeout
         if start.elapsed() > timeout {
             panic!("Test timed out after {:?}", timeout);

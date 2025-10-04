@@ -12,7 +12,10 @@ fn test_browser_opener_detection() {
 
     // At least one should be available in most environments
     // This test will pass if any browser opening command is available
-    println!("Available commands: wslview={}, xdg-open={}, open={}", has_wslview, has_xdg_open, has_open);
+    println!(
+        "Available commands: wslview={}, xdg-open={}, open={}",
+        has_wslview, has_xdg_open, has_open
+    );
 }
 
 #[test]
@@ -33,7 +36,7 @@ fn test_open_with_server() {
 fn test_browser_opener_with_temp_file() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let test_file = temp_dir.path().join("test.html");
-    
+
     let html_content = r#"<!DOCTYPE html>
 <html>
 <head><title>Browser Test</title></head>
@@ -42,13 +45,17 @@ fn test_browser_opener_with_temp_file() {
 
     // Write test HTML file
     let mut file = File::create(&test_file).expect("Failed to create test file");
-    file.write_all(html_content.as_bytes()).expect("Failed to write test content");
+    file.write_all(html_content.as_bytes())
+        .expect("Failed to write test content");
 
     // Test browser opening (may fail in CI environments)
     let result = BrowserOpener::open(&test_file);
     match result {
         Ok(()) => println!("Browser opened successfully"),
-        Err(e) => println!("Browser opening failed (expected in some environments): {}", e),
+        Err(e) => println!(
+            "Browser opening failed (expected in some environments): {}",
+            e
+        ),
     }
 }
 
@@ -59,7 +66,7 @@ fn test_find_available_port() {
     // by checking that the open_with_server function doesn't panic
     let html_content = "<html><body>Test</body></html>";
     let result = BrowserOpener::open_with_server(html_content, "port-test.html");
-    
+
     // Should not panic, regardless of success
     println!("Port finding test result: {:?}", result);
 }
@@ -68,15 +75,21 @@ fn test_find_available_port() {
 #[test]
 fn test_linux_browser_detection() {
     // Test Linux-specific browser detection
-    let browsers = ["firefox", "google-chrome", "chromium", "brave-browser", "opera"];
-    
+    let browsers = [
+        "firefox",
+        "google-chrome",
+        "chromium",
+        "brave-browser",
+        "opera",
+    ];
+
     let mut found_browsers = Vec::new();
     for browser in &browsers {
         if which::which(browser).is_ok() {
             found_browsers.push(browser);
         }
     }
-    
+
     println!("Found Linux browsers: {:?}", found_browsers);
     // At least one browser should be available on Linux systems with GUI
 }
@@ -128,7 +141,7 @@ fn test_html_content_serving() {
     assert!(html_content.contains("<html"));
     assert!(html_content.contains("</html>"));
     assert!(html_content.contains("Test Note"));
-    
+
     // Test browser opening with well-formed HTML
     let result = BrowserOpener::open_with_server(html_content, "well-formed-test.html");
     println!("Well-formed HTML test result: {:?}", result);

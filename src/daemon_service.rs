@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::fs;
 
-use crate::daemon::{FukuraDaemon, DaemonConfig};
+use crate::daemon::{DaemonConfig, FukuraDaemon};
 use crate::repo::FukuraRepo;
 
 /// Background daemon service management
@@ -32,21 +32,19 @@ impl DaemonService {
     /// Stop the background daemon
     pub async fn stop_background(&self) -> Result<()> {
         let pid_file = self.get_pid_file_path();
-        
+
         if !pid_file.exists() {
             return Ok(()); // Already stopped
         }
 
         let pid = fs::read_to_string(&pid_file).await?;
-        
+
         if cfg!(target_os = "windows") {
             Command::new("taskkill")
                 .args(&["/F", "/PID", &pid])
                 .output()?;
         } else {
-            Command::new("kill")
-                .arg(&pid)
-                .output()?;
+            Command::new("kill").arg(&pid).output()?;
         }
 
         fs::remove_file(&pid_file).await?;
@@ -56,7 +54,7 @@ impl DaemonService {
     /// Check if daemon is running
     pub async fn is_running(&self) -> bool {
         let pid_file = self.get_pid_file_path();
-        
+
         if !pid_file.exists() {
             return false;
         }
@@ -75,7 +73,7 @@ impl DaemonService {
                     stdout: Vec::new(),
                     stderr: Vec::new(),
                 });
-            
+
             String::from_utf8_lossy(&output.stdout).contains(&pid)
         } else {
             // Parse PID and use improved process check
@@ -107,17 +105,17 @@ impl DaemonService {
             .stdin(Stdio::null());
 
         let child = cmd.spawn()?;
-        
+
         // Write PID file and detach from parent process
         let pid = child.id();
         std::fs::write(&pid_file, pid.to_string())?;
-        
+
         // Detach the child process to prevent zombie processes
         drop(child);
 
         // Give the daemon time to start and verify it's running
         std::thread::sleep(Duration::from_millis(1000));
-        
+
         if !self.is_process_running(pid) {
             // Clean up PID file if process failed to start
             let _ = std::fs::remove_file(&pid_file);
@@ -139,7 +137,7 @@ impl DaemonService {
                 stdout: Vec::new(),
                 stderr: Vec::new(),
             });
-        
+
         output.status.success()
     }
 
@@ -166,7 +164,7 @@ impl DaemonService {
         .current_dir(&self.repo_path);
 
         let _child = cmd.spawn()?;
-        
+
         // Give the daemon a moment to start and write its PID
         std::thread::sleep(Duration::from_millis(500));
 
@@ -196,7 +194,7 @@ pub struct AutoNoteDaemon {
 impl AutoNoteDaemon {
     pub fn new(repo_path: &Path, config: DaemonConfig) -> Result<Self> {
         let daemon = FukuraDaemon::new(repo_path, config)?;
-        
+
         Ok(Self {
             daemon,
             auto_note_threshold: Duration::from_secs(300), // 5 minutes
@@ -213,7 +211,7 @@ impl AutoNoteDaemon {
         let repo_path = self.daemon.repo_path.clone();
         let repo = Arc::new(FukuraRepo::discover(Some(&repo_path))?);
         let threshold = self.auto_note_threshold;
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60));
             loop {
@@ -227,22 +225,29 @@ impl AutoNoteDaemon {
 
     /// Generate notes from completed sessions
     async fn generate_notes_from_sessions(
-        sessions: &Arc<tokio::sync::RwLock<std::collections::HashMap<String, crate::daemon::ActiveSession>>>,
+        sessions: &Arc<
+            tokio::sync::RwLock<std::collections::HashMap<String, crate::daemon::ActiveSession>>,
+        >,
         repo: &Arc<FukuraRepo>,
         threshold: Duration,
     ) {
         let mut sessions_guard = sessions.write().await;
         let now = std::time::SystemTime::now();
-        
+
         let mut completed_sessions = Vec::new();
-        
+
         // Find sessions that have been inactive for the threshold duration
         for (id, session) in sessions_guard.iter() {
-            if now.duration_since(session.last_activity).unwrap_or_default() > threshold && !session.errors.is_empty() {
+            if now
+                .duration_since(session.last_activity)
+                .unwrap_or_default()
+                > threshold
+                && !session.errors.is_empty()
+            {
                 completed_sessions.push(id.clone());
             }
         }
-        
+
         // Generate notes for completed sessions
         for session_id in completed_sessions {
             if let Some(session) = sessions_guard.remove(&session_id) {
@@ -256,11 +261,13 @@ impl AutoNoteDaemon {
     }
 
     /// Create a note from a completed session
-    async fn create_note_from_session(session: &crate::daemon::ActiveSession) -> Result<crate::models::Note> {
+    async fn create_note_from_session(
+        session: &crate::daemon::ActiveSession,
+    ) -> Result<crate::models::Note> {
         let title = Self::generate_title_from_session(session);
         let body = Self::generate_body_from_session(session);
         let tags = Self::generate_tags_from_session(session);
-        
+
         let now = chrono::Utc::now();
         let author = crate::models::Author {
             name: std::env::var("USER").unwrap_or_else(|_| "unknown".to_string()),
@@ -287,22 +294,38 @@ impl AutoNoteDaemon {
             let error_words: Vec<&str> = last_error.normalized.split_whitespace().take(5).collect();
             format!("Auto-captured: {}", error_words.join(" "))
         } else {
-            format!("Auto-captured session from {}", session.start_time.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs())
+            format!(
+                "Auto-captured session from {}",
+                session
+                    .start_time
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+            )
         }
     }
 
     fn generate_body_from_session(session: &crate::daemon::ActiveSession) -> String {
         let mut body = String::new();
-        
+
         body.push_str("# Auto-Captured Error Session\n\n");
-        body.push_str(&format!("**Session Duration:** {} seconds\n", 
-            session.last_activity.duration_since(session.start_time).unwrap_or_default().as_secs()));
-        body.push_str(&format!("**Working Directory:** {}\n\n", session.context.working_directory));
-        
+        body.push_str(&format!(
+            "**Session Duration:** {} seconds\n",
+            session
+                .last_activity
+                .duration_since(session.start_time)
+                .unwrap_or_default()
+                .as_secs()
+        ));
+        body.push_str(&format!(
+            "**Working Directory:** {}\n\n",
+            session.context.working_directory
+        ));
+
         if let Some(branch) = &session.context.git_branch {
             body.push_str(&format!("**Git Branch:** {}\n\n", branch));
         }
-        
+
         // Add errors
         if !session.errors.is_empty() {
             body.push_str("## Errors Encountered\n\n");
@@ -311,12 +334,14 @@ impl AutoNoteDaemon {
             }
             body.push_str("\n");
         }
-        
+
         // Add successful commands (solution steps)
-        let successful_commands: Vec<_> = session.commands.iter()
+        let successful_commands: Vec<_> = session
+            .commands
+            .iter()
             .filter(|cmd| cmd.exit_code == Some(0))
             .collect();
-            
+
         if !successful_commands.is_empty() {
             body.push_str("## Solution Steps\n\n");
             for (i, cmd) in successful_commands.iter().enumerate() {
@@ -324,20 +349,24 @@ impl AutoNoteDaemon {
             }
             body.push_str("\n");
         }
-        
+
         // Add all commands for context
         body.push_str("## All Commands\n\n");
         for (i, cmd) in session.commands.iter().enumerate() {
-            let status = if cmd.exit_code == Some(0) { "✅" } else { "❌" };
+            let status = if cmd.exit_code == Some(0) {
+                "✅"
+            } else {
+                "❌"
+            };
             body.push_str(&format!("{}. {} `{}`\n", i + 1, status, cmd.command));
         }
-        
+
         body
     }
 
     fn generate_tags_from_session(session: &crate::daemon::ActiveSession) -> Vec<String> {
         let mut tags = vec!["auto-captured".to_string(), "session".to_string()];
-        
+
         // Add tags based on commands used
         for cmd in &session.commands {
             if cmd.command.contains("npm") || cmd.command.contains("yarn") {
@@ -352,18 +381,20 @@ impl AutoNoteDaemon {
                 tags.push("python".to_string());
             }
         }
-        
+
         // Add tags based on errors
         for error in &session.errors {
             if error.message.to_lowercase().contains("permission") {
                 tags.push("permissions".to_string());
-            } else if error.message.to_lowercase().contains("network") || error.message.to_lowercase().contains("connection") {
+            } else if error.message.to_lowercase().contains("network")
+                || error.message.to_lowercase().contains("connection")
+            {
                 tags.push("network".to_string());
             } else if error.message.to_lowercase().contains("memory") {
                 tags.push("memory".to_string());
             }
         }
-        
+
         tags.sort();
         tags.dedup();
         tags
