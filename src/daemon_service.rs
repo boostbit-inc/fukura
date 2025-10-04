@@ -153,7 +153,7 @@ impl DaemonService {
 
         // Start daemon in background using PowerShell for better control
         let mut cmd = Command::new("powershell");
-        cmd.args(&[
+        cmd.args([
             "-Command", 
             &format!(
                 "Start-Process -FilePath '{}' -ArgumentList 'daemon' -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id | Out-File -FilePath '{}' -Encoding ASCII",

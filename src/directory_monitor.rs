@@ -102,14 +102,15 @@ impl DirectoryMonitor {
     }
 
     /// Recursively scan directory for .fukura subdirectories
+    #[allow(clippy::only_used_in_recursion)]
     fn scan_directory_for_fukura(
         &self,
         dir: &std::path::Path,
         found_dirs: &mut std::collections::HashSet<std::path::PathBuf>,
     ) -> Result<()> {
-        let mut entries = tokio::task::block_in_place(|| std::fs::read_dir(dir))?;
+        let entries = tokio::task::block_in_place(|| std::fs::read_dir(dir))?;
 
-        while let Some(entry) = entries.next() {
+        for entry in entries {
             let entry = entry?;
             let path = entry.path();
 

@@ -135,7 +135,7 @@ impl BrowserOpener {
     /// Try Windows default browser
     fn try_windows_default(path: &Path) -> Result<()> {
         let status = Command::new("rundll32")
-            .args(&["url.dll,FileProtocolHandler", &path.to_string_lossy()])
+            .args(["url.dll,FileProtocolHandler", &path.to_string_lossy()])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
@@ -168,7 +168,7 @@ impl BrowserOpener {
         ];
 
         for browser in &browsers {
-            if let Ok(_) = which::which(browser) {
+            if which::which(browser).is_ok() {
                 let status = Command::new(browser)
                     .arg(path)
                     .stdout(Stdio::null())
@@ -219,7 +219,7 @@ impl BrowserOpener {
         thread::sleep(Duration::from_millis(500));
 
         // Try to open the URL in browser
-        if let Err(_) = Self::open_url(&url) {
+        if Self::open_url(&url).is_err() {
             // If opening fails, print the URL for manual opening
             println!("🌐 Please open this URL in your browser: {}", url);
             println!("📁 Or open this file directly: {}", file_path.display());
@@ -277,7 +277,7 @@ impl BrowserOpener {
         use std::io::{Read, Write};
 
         let mut buffer = [0; 1024];
-        stream.read(&mut buffer)?;
+        let _bytes_read = stream.read(&mut buffer)?;
 
         let response = format!(
             "HTTP/1.1 200 OK\r\n\
@@ -298,15 +298,15 @@ impl BrowserOpener {
     fn open_url(url: &str) -> Result<()> {
         if cfg!(target_os = "windows") {
             Command::new("rundll32")
-                .args(&["url.dll,FileProtocolHandler", url])
+                .args(["url.dll,FileProtocolHandler", url])
                 .status()?;
         } else if cfg!(target_os = "macos") {
             Command::new("open").arg(url).status()?;
         } else {
             // Try xdg-open first, then wslview
-            if let Ok(_) = which::which("xdg-open") {
+            if which::which("xdg-open").is_ok() {
                 Command::new("xdg-open").arg(url).status()?;
-            } else if let Ok(_) = which::which("wslview") {
+            } else if which::which("wslview").is_ok() {
                 Command::new("wslview").arg(url).status()?;
             } else {
                 return Err(anyhow::anyhow!("No suitable command to open URL"));

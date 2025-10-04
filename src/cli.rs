@@ -761,24 +761,16 @@ fn get_interactive_body() -> Result<String> {
     println!("📝 Enter your note content (press Ctrl+D or Ctrl+Z when finished):");
 
     let mut body = String::new();
-    loop {
-        match Input::<String>::with_theme(&ColorfulTheme::default())
-            .with_prompt(">")
-            .allow_empty(true)
-            .interact_text()
-        {
-            Ok(line) => {
-                if line.trim().is_empty() {
-                    break;
-                }
-                body.push_str(&line);
-                body.push('\n');
-            }
-            Err(_) => {
-                // User pressed Ctrl+D/Ctrl+Z or cancelled
-                break;
-            }
+    while let Ok(line) = Input::<String>::with_theme(&ColorfulTheme::default())
+        .with_prompt(">")
+        .allow_empty(true)
+        .interact_text()
+    {
+        if line.trim().is_empty() {
+            break;
         }
+        body.push_str(&line);
+        body.push('\n');
     }
 
     if body.trim().is_empty() {
@@ -1630,10 +1622,8 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
             if !cli.quiet {
                 println!("{} Daemon stopped", "🛑".red());
             }
-        } else {
-            if !cli.quiet {
-                println!("{} Daemon is not running", "ℹ️".blue());
-            }
+        } else if !cli.quiet {
+            println!("{} Daemon is not running", "ℹ️".blue());
         }
     } else if cmd.record_command.is_some() || cmd.record_error.is_some() || cmd.check_solutions {
         // Handle individual commands
@@ -1673,10 +1663,8 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
                         );
                     }
                 }
-            } else {
-                if !cli.quiet {
-                    println!("{} No solutions found", "❌".red());
-                }
+            } else if !cli.quiet {
+                println!("{} No solutions found", "❌".red());
             }
         }
     } else {
@@ -1778,14 +1766,12 @@ async fn handle_monitor(cli: &Cli, cmd: &MonitorCommand) -> Result<()> {
             if !cli.quiet {
                 println!("{} Auto-started daemon for {}", "🚀".green(), cwd.display());
             }
-        } else {
-            if !cli.quiet {
-                println!(
-                    "{} Daemon already running for {}",
-                    "✅".green(),
-                    cwd.display()
-                );
-            }
+        } else if !cli.quiet {
+            println!(
+                "{} Daemon already running for {}",
+                "✅".green(),
+                cwd.display()
+            );
         }
     } else if cmd.start {
         // Start directory monitoring
@@ -1819,13 +1805,11 @@ async fn handle_monitor(cli: &Cli, cmd: &MonitorCommand) -> Result<()> {
                     println!("{} Daemon is not running for {}", "❌".red(), cwd.display());
                 }
             }
-        } else {
-            if !cli.quiet {
-                println!(
-                    "{} No .fukura directory found in current directory",
-                    "❌".red()
-                );
-            }
+        } else if !cli.quiet {
+            println!(
+                "{} No .fukura directory found in current directory",
+                "❌".red()
+            );
         }
     } else {
         // Show help

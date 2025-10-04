@@ -71,7 +71,7 @@ fn test_github_workflows_syntax() {
 
         if path
             .extension()
-            .map_or(false, |ext| ext == "yml" || ext == "yaml")
+            .is_some_and(|ext| ext == "yml" || ext == "yaml")
         {
             let content = fs::read_to_string(&path).expect("Failed to read workflow file");
 
