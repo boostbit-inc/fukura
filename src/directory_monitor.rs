@@ -17,7 +17,9 @@ impl DirectoryMonitor {
             monitored_paths: std::collections::HashSet::new(),
         }
     }
+}
 
+impl DirectoryMonitor {
     /// Start monitoring for .fukura directories
     pub async fn start_monitoring(&mut self) -> Result<()> {
         loop {
@@ -140,7 +142,21 @@ impl VSCodeIntegration {
             workspace_file: Self::find_vscode_workspace(),
         }
     }
+}
 
+impl Default for DirectoryMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Default for VSCodeIntegration {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl VSCodeIntegration {
     /// Check if we're in a VS Code workspace and start daemon if needed
     pub async fn check_and_start_daemon(&self) -> Result<()> {
         if let Some(workspace_path) = &self.workspace_file {
