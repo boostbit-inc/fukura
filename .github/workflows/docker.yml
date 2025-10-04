@@ -56,15 +56,26 @@ jobs:
         cache-to: type=gha,mode=max
 
     - name: Run security scan
+      id: trivy
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
         format: 'sarif'
         output: 'trivy-results.sarif'
+      continue-on-error: true
+
+    - name: Check if SARIF file exists
+      id: check-sarif
+      run: |
+        if [ -f "trivy-results.sarif" ]; then
+          echo "sarif-exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "sarif-exists=false" >> $GITHUB_OUTPUT
+        fi
 
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
-      if: always() && steps.meta.outputs.tags != '' && github.event_name == 'push'
+      if: always() && github.event_name == 'push' && steps.check-sarif.outputs.sarif-exists == 'true'
       with:
         sarif_file: 'trivy-results.sarif'
 

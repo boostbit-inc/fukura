@@ -26,7 +26,7 @@ COPY dist.toml ./dist.toml
 COPY installers ./installers
 COPY deny.toml ./deny.toml
 
-# Copy scripts directory (may not exist)
+# Copy scripts directory
 COPY scripts ./scripts
 
 # Build the application
