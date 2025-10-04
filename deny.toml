@@ -1,25 +1,102 @@
-# Security and license compliance configuration
-[licenses]
-default = "deny"
-allow = [
-    "Apache-2.0",
-    "MIT",
-    "BSD-3-Clause",
-    "ISC",
-    "Unicode-DFS-2016",
-]
-copyleft = "warn"
-allow-osi-fsf-free = "neither"
-default-copyleft = "deny"
+[advisories]
+# Vulnerability database options
+db-url = "https://github.com/RustSec/advisory-db"
+db-path = "~/.cargo/advisory-db"
+informational-warn = ["unmaintained", "unsound", "yanked"]
+ignore = []
 
-[licenses.clarify]
-"serde_json" = { version = "*", expression = "MIT OR Apache-2.0" }
+[licenses]
+# Allow and deny lists (allow overrides deny)
+allow = [
+    # MIT
+    "MIT",
+    # Apache 2.0
+    "Apache-2.0",
+    # BSD 2-clause
+    "BSD-2-Clause",
+    # BSD 3-clause
+    "BSD-3-Clause",
+    # ISC
+    "ISC",
+    # Unicode
+    "Unicode-DFS-2016",
+    # Zlib
+    "Zlib",
+    # MPL 2.0
+    "MPL-2.0",
+    # CC0 (for examples/docs)
+    "CC0-1.0",
+    # 0BSD
+    "0BSD",
+    # Boost Software License
+    "BSL-1.0",
+]
+deny = [
+    # GPL
+    "GPL-2.0",
+    "GPL-2.0+",
+    "GPL-3.0",
+    "GPL-3.0+",
+    # LGPL
+    "LGPL-2.0",
+    "LGPL-2.0+",
+    "LGPL-2.1",
+    "LGPL-2.1+",
+    "LGPL-3.0",
+    "LGPL-3.0+",
+    # AGPL
+    "AGPL-3.0",
+    "AGPL-3.0+",
+    # Copyleft
+    "Copyleft",
+]
+# Uncomment to add additional allow/deny overrides
+# allow-osi-fsf-free = "neither"
+# default = "deny"
+
+[licenses.private]
+# If true, ignores workspace crates that aren't published, or are only
+# published to private registries.
+ignore = true
+# One of "warn", "deny", "allow"
+default = "allow"
+
+[source]
+# TOML table of source URLs to replace
+# e.g. replace a git repository with a published crate version
+# [source.crates-io]
+# replace-with = "vendored-sources"
+# [source.vendored-sources]
+# directory = "vendor"
+
+[source."https://github.com/RustSec/advisory-db"]
+# Replace the default crates.io-based source with the git repository
+# replace-with = "vendored-sources"
 
 [bans]
-multiple-versions = "deny"
-wildcards = "allow"
+# Lint level for `bans` lints (unmaintained, duplicate, wildcard)
+level = "warn"
+# Wildcard version dependencies
+multiple-versions = "warn"
+# Wildcard version dependencies, but only those matching the given regex
+# multiple-versions = { level = "deny", regex = "0\\.\\d+" }
+# Allow/deny list of crates to skip multiple-versions check
+skip = [
+    # "ansi_term",
+]
+# Similarly, but with version requirements
+# skip-tree = [
+#     { name = "ansi_term", version = "=0.11.0" },
+# ]
+# skip-tree = [
+#     { name = "ansi_term", version = "=0.11.0" },
+# ]
 
-[advisories]
-ignore = []
-severity-threshold = "medium"
-
+# Set of features defined on the workspace root
+# For example, you might want to disable a particular feature
+# turned on by a dependency.
+workspace-features = "deny"
+# Or be more specific
+# [bans.workspace-features]
+# level = "warn"
+# ignore = ["serde/derive"]
