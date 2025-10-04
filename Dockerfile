@@ -13,21 +13,20 @@ RUN apt-get update && apt-get install -y \
 # Copy Cargo.toml and Cargo.lock to leverage Docker cache
 COPY Cargo.toml Cargo.lock ./
 
-# Create a dummy src/main.rs to cache dependencies
+# Create dummy files to cache dependencies
 RUN mkdir src && echo "fn main() {}" > src/main.rs
+RUN mkdir benches && echo "fn main() {}" > benches/search_benchmark.rs
 RUN cargo build --release
-RUN rm -rf src
+RUN rm -rf src benches
 
 # Copy the actual source code
 COPY src ./src
 COPY benches ./benches
 COPY tests ./tests
 COPY dist.toml ./dist.toml
-COPY installers ./installers
 COPY deny.toml ./deny.toml
-
-# Copy scripts directory
 COPY scripts ./scripts
+COPY installers ./installers
 
 # Build the application
 RUN cargo build --release

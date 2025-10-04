@@ -1,14 +1,14 @@
-# Rust
+# Build artifacts
 target/
 Cargo.lock
 
-# IDE
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
 
@@ -16,21 +16,15 @@ Thumbs.db
 .git/
 .gitignore
 
-# Documentation
+# Documentation (not needed in container)
 *.md
 docs/
 
-# CI/CD
+# CI/CD (not needed in container)
 .github/
 
-# Installers
-installers/
-
-# Distribution
-dist/
-
-# Tests
-tests/
+# Tests (not needed in container)
+# tests/
 
 # Temporary files
 *.tmp
