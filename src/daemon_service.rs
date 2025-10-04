@@ -128,27 +128,28 @@ impl DaemonService {
         // Create daemon directory if it doesn't exist
         std::fs::create_dir_all(&daemon_dir)?;
 
-        // Start daemon in background using start command
-        let mut cmd = Command::new("cmd");
+        // Start daemon in background using PowerShell for better control
+        let mut cmd = Command::new("powershell");
         cmd.args(&[
-            "/C", "start", "/B", "/MIN",
-            &exe_path.to_string_lossy(),
-            "daemon", "--foreground"
+            "-Command", 
+            &format!(
+                "Start-Process -FilePath '{}' -ArgumentList 'daemon' -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id | Out-File -FilePath '{}' -Encoding ASCII",
+                exe_path.to_string_lossy(),
+                pid_file.to_string_lossy()
+            )
         ])
-        .current_dir(&self.repo_path)
-        .stdout(Stdio::from(std::fs::File::create(&log_file)?))
-        .stderr(Stdio::from(std::fs::File::create(&log_file)?));
+        .current_dir(&self.repo_path);
 
-        let child = cmd.spawn()?;
+        let _child = cmd.spawn()?;
         
-        // Write PID file
-        std::fs::write(&pid_file, child.id().to_string())?;
+        // Give the daemon a moment to start and write its PID
+        std::thread::sleep(Duration::from_millis(500));
 
         Ok(())
     }
 
     /// Get the PID file path
-    fn get_pid_file_path(&self) -> std::path::PathBuf {
+    pub fn get_pid_file_path(&self) -> std::path::PathBuf {
         self.repo_path.join(".fukura").join("daemon.pid")
     }
 
