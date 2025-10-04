@@ -470,7 +470,7 @@ fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
     } else if let Some(path) = &cmd.file {
         fs::read_to_string(path)
             .with_context(|| format!("Failed to read body from {}", path.display()))?
-    } else if cmd.stdin || !atty::is(atty::Stream::Stdin) {
+    } else if cmd.stdin || !is_terminal::is_terminal(&std::io::stdin()) {
         let mut buf = String::new();
         io::stdin().read_to_string(&mut buf)?;
         buf
