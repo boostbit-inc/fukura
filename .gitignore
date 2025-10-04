@@ -13,7 +13,7 @@ dist/
 .vscode/
 
 # Rust tooling
-Cargo.lock
+# Cargo.lock - needed for reproducible builds
 
 # Generated files
 *.fop
