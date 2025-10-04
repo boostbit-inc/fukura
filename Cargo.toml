@@ -40,11 +40,12 @@ dialoguer = { version = "0.12", features = ["editor"] }
 comfy-table = "7.2"
 open = "5.1"
 regex = "1.10"
-atty = "0.2"
+# atty = "0.2"  # Removed: using is-terminal instead
 pulldown-cmark = "0.13"
 html-escape = "0.2"
 tracing = "0.1"
 which = "6.0"
+is-terminal = "0.4"  # Modern replacement for atty
 
 [dev-dependencies]
 tempfile = "3.10"

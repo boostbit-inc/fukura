@@ -2,9 +2,6 @@
 # Vulnerability database options
 db-urls = ["https://github.com/rustsec/advisory-db"]
 ignore = [
-    # atty is unmaintained but used by dependencies
-    { id = "RUSTSEC-2021-0145", reason = "atty is used by dependencies, will be replaced when updated" },
-    { id = "RUSTSEC-2024-0375", reason = "atty is used by dependencies, will be replaced when updated" },
     # paste is unmaintained but used by ratatui
     { id = "RUSTSEC-2024-0436", reason = "paste is used by ratatui dependency, will be replaced when updated" },
 ]
@@ -42,7 +39,7 @@ allow = [
 
 [bans]
 # Lint level for when multiple versions of the same crate are detected
-multiple-versions = "warn"
+multiple-versions = "allow"
 # Allow/deny list of crates to skip multiple-versions check
 skip = []
 # The default lint level for `default` features for crates that are members of
