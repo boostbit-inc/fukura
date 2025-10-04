@@ -335,6 +335,9 @@ pub struct DaemonCommand {
     #[arg(long, help = "Show daemon status")]
     status: bool,
 
+    #[arg(long, help = "Start daemon in background (default)")]
+    background: bool,
+
     #[arg(long, help = "Record a command execution")]
     record_command: Option<String>,
 
@@ -1633,14 +1636,29 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
     
     if cmd.status {
         // Show daemon status
+        let daemon_service = crate::daemon_service::DaemonService::new(repo.root());
+        
         if !cli.quiet {
-            println!("{} Daemon status: {}", "📊".blue(), "Not implemented yet");
+            if daemon_service.is_running().await {
+                println!("{} Daemon status: {}", "📊".blue(), "Running".green());
+                println!("{} PID file: {}", "📁".blue(), daemon_service.get_pid_file_path().display());
+            } else {
+                println!("{} Daemon status: {}", "📊".blue(), "Stopped".red());
+            }
         }
     } else if cmd.stop {
         // Stop daemon
-        daemon.stop().await?;
-        if !cli.quiet {
-            println!("{} Daemon stopped", "🛑".red());
+        let daemon_service = crate::daemon_service::DaemonService::new(repo.root());
+        
+        if daemon_service.is_running().await {
+            daemon_service.stop_background().await?;
+            if !cli.quiet {
+                println!("{} Daemon stopped", "🛑".red());
+            }
+        } else {
+            if !cli.quiet {
+                println!("{} Daemon is not running", "ℹ️".blue());
+            }
         }
     } else if cmd.record_command.is_some() || cmd.record_error.is_some() || cmd.check_solutions {
         // Handle individual commands
@@ -1682,17 +1700,32 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
         if cmd.foreground {
             if !cli.quiet {
                 println!("{} Starting daemon in foreground...", "🚀".green());
+                println!("{} Press Ctrl+C to stop", "💡".blue());
             }
             daemon.start().await?;
             
             // Keep running until interrupted
             tokio::signal::ctrl_c().await?;
             daemon.stop().await?;
-        } else {
-            // Start daemon in background (not implemented yet)
             if !cli.quiet {
-                println!("{} Background daemon not implemented yet", "⚠️".yellow());
-                println!("{} Use --foreground to start daemon in foreground", "💡".blue());
+                println!("{} Daemon stopped", "🛑".red());
+            }
+        } else {
+            // Start daemon in background (default)
+            let daemon_service = crate::daemon_service::DaemonService::new(repo.root());
+            
+            if daemon_service.is_running().await {
+                if !cli.quiet {
+                    println!("{} Daemon is already running", "✅".green());
+                    println!("{} Use 'fukura daemon --status' to check status", "💡".blue());
+                }
+            } else {
+                daemon_service.start_background()?;
+                if !cli.quiet {
+                    println!("{} Daemon started in background", "🚀".green());
+                    println!("{} Now monitoring for errors automatically", "👀".blue());
+                    println!("{} Use 'fukura daemon --status' to check status", "💡".blue());
+                }
             }
         }
     }
