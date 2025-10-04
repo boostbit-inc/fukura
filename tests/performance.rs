@@ -52,7 +52,8 @@ fn test_bulk_insert_performance() {
         );
         notes.push(note);
     }
-    repo.store_notes_batch(notes).expect("Failed to store notes in batch");
+    repo.store_notes_batch(notes)
+        .expect("Failed to store notes in batch");
 
     let duration = start.elapsed();
     println!("Bulk insert of 50 notes took: {:?}", duration);
@@ -82,7 +83,8 @@ fn test_search_performance() {
         );
         notes.push(note);
     }
-    repo.store_notes_batch(notes).expect("Failed to store notes in batch");
+    repo.store_notes_batch(notes)
+        .expect("Failed to store notes in batch");
 
     let start = Instant::now();
 

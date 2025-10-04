@@ -52,7 +52,7 @@ pub fn pack_objects(repo: &FukuraRepo, prune: bool) -> Result<PackReport> {
 
     // Pre-allocate buffer for better performance
     let mut buffer = Vec::with_capacity(1024 * 1024); // 1MB buffer
-    
+
     for (object_id, path) in &objects {
         buffer.clear();
         File::open(path)
