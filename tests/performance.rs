@@ -35,8 +35,14 @@ fn test_bulk_insert_performance() {
     let start = Instant::now();
     let timeout = std::time::Duration::from_secs(120); // 2 minute timeout
 
-    // Insert 50 notes (reduced for faster testing)
+    // Insert 50 notes using batch processing (reduced for faster testing)
+    let mut notes = Vec::new();
     for i in 0..50 {
+        // Check timeout
+        if start.elapsed() > timeout {
+            panic!("Test timed out after {:?}", timeout);
+        }
+
         let note = create_test_note(
             &format!("Performance Test Note {}", i),
             &format!(
@@ -44,13 +50,9 @@ fn test_bulk_insert_performance() {
                 i
             ),
         );
-        repo.store_note(note).expect("Failed to store note");
-
-        // Check timeout
-        if start.elapsed() > timeout {
-            panic!("Test timed out after {:?}", timeout);
-        }
+        notes.push(note);
     }
+    repo.store_notes_batch(notes).expect("Failed to store notes in batch");
 
     let duration = start.elapsed();
     println!("Bulk insert of 50 notes took: {:?}", duration);
@@ -68,7 +70,8 @@ fn test_search_performance() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let repo = FukuraRepo::init(temp_dir.path(), true).expect("Failed to init repo");
 
-    // Insert test data
+    // Insert test data using batch processing
+    let mut notes = Vec::new();
     for i in 0..50 {
         let note = create_test_note(
             &format!("Search Test Note {}", i),
@@ -77,8 +80,9 @@ fn test_search_performance() {
                 i % 10
             ),
         );
-        repo.store_note(note).expect("Failed to store note");
+        notes.push(note);
     }
+    repo.store_notes_batch(notes).expect("Failed to store notes in batch");
 
     let start = Instant::now();
 

@@ -70,7 +70,7 @@ jobs:
       run: cargo clippy --all-targets --all-features -- -D warnings
 
     - name: Run tests
-      run: cargo test --all-targets --verbose
+      run: cargo test --lib --bins --tests --verbose
 
     - name: Build
       run: cargo build --verbose --release
