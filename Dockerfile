@@ -3,27 +3,25 @@ FROM rust:1.90 AS builder
 
 WORKDIR /app
 
-# Install system dependencies for cross-compilation (if needed)
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     pkg-config \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Cargo.toml and Cargo.lock to leverage Docker cache
-COPY Cargo.toml ./
-COPY Cargo.lock ./
+# Copy Cargo files first for better caching
+COPY Cargo.toml Cargo.lock ./
 
-# Verify files exist
-RUN ls -la Cargo.toml Cargo.lock
-
-# Create dummy files to cache dependencies
+# Create dummy source for dependency caching
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN mkdir benches && echo "fn main() {}" > benches/search_benchmark.rs
-RUN cargo build --release
+
+# Build dependencies only (this layer will be cached)
+RUN cargo build --release --offline || cargo build --release
 RUN rm -rf src benches
 
-# Copy the actual source code
+# Copy actual source code
 COPY src ./src
 COPY benches ./benches
 COPY tests ./tests
@@ -32,8 +30,8 @@ COPY deny.toml ./deny.toml
 COPY scripts ./scripts
 COPY installers ./installers
 
-# Build the application
-RUN cargo build --release
+# Build the application (only rebuild if source changed)
+RUN cargo build --release --offline
 
 # --- Final stage ---
 FROM debian:stable-slim
