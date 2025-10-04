@@ -78,20 +78,16 @@ impl DaemonService {
             
             String::from_utf8_lossy(&output.stdout).contains(&pid)
         } else {
-            let output = Command::new("ps")
-                .args(&["-p", &pid])
-                .output()
-                .unwrap_or_else(|_| std::process::Output {
-                    status: std::process::ExitStatus::default(),
-                    stdout: Vec::new(),
-                    stderr: Vec::new(),
-                });
-            
-            output.status.success()
+            // Parse PID and use improved process check
+            if let Ok(pid_num) = pid.parse::<u32>() {
+                self.is_process_running(pid_num)
+            } else {
+                false
+            }
         }
     }
 
-    /// Start daemon as Unix service (using nohup)
+    /// Start daemon as Unix service (using nohup with proper background execution)
     fn start_unix_service(&self) -> Result<()> {
         let exe_path = std::env::current_exe()?;
         let daemon_dir = self.repo_path.join(".fukura");
@@ -101,7 +97,7 @@ impl DaemonService {
         // Create daemon directory if it doesn't exist
         std::fs::create_dir_all(&daemon_dir)?;
 
-        // Start daemon in background
+        // Start daemon in background using nohup with proper process detachment
         let mut cmd = Command::new("nohup");
         cmd.arg(&exe_path)
             .args(&["daemon", "--foreground"])
@@ -112,10 +108,39 @@ impl DaemonService {
 
         let child = cmd.spawn()?;
         
-        // Write PID file
-        std::fs::write(&pid_file, child.id().to_string())?;
+        // Write PID file and detach from parent process
+        let pid = child.id();
+        std::fs::write(&pid_file, pid.to_string())?;
+        
+        // Detach the child process to prevent zombie processes
+        drop(child);
+
+        // Give the daemon time to start and verify it's running
+        std::thread::sleep(Duration::from_millis(1000));
+        
+        if !self.is_process_running(pid) {
+            // Clean up PID file if process failed to start
+            let _ = std::fs::remove_file(&pid_file);
+            return Err(anyhow::anyhow!("Failed to start daemon process"));
+        }
+
+        println!("Daemon started successfully with PID: {}", pid);
 
         Ok(())
+    }
+
+    /// Check if a process is running by PID (Unix)
+    fn is_process_running(&self, pid: u32) -> bool {
+        let output = Command::new("ps")
+            .args(&["-p", &pid.to_string()])
+            .output()
+            .unwrap_or_else(|_| std::process::Output {
+                status: std::process::ExitStatus::default(),
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+            });
+        
+        output.status.success()
     }
 
     /// Start daemon as Windows service
