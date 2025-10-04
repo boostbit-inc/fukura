@@ -90,9 +90,59 @@ docker-compose run fukura fukura --help
 
 Releases are automated through GitHub Actions. To trigger a release:
 
-1. Update version in `Cargo.toml`
-2. Create and push a tag: `git tag v0.1.1 && git push origin v0.1.1`
-3. The CI will automatically build and publish the release
+### For Maintainers
+
+1. **Update Version**
+   ```bash
+   # Update version in Cargo.toml
+   # Example: version = "0.2.0"
+   ```
+
+2. **Create Release Tag**
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+3. **Monitor Release Process**
+   - Check GitHub Actions tab for release workflow progress
+   - Verify all build jobs complete successfully
+   - Confirm artifacts are uploaded to GitHub Releases
+
+### What Happens During Release
+
+The release process automatically:
+
+1. **Builds Multi-Platform Packages**
+   - Linux: `.deb` (Debian/Ubuntu), `.rpm` (RedHat/CentOS), `.tar.gz`
+   - Future: macOS `.pkg`, Windows `.msi` (when signing certificates are available)
+
+2. **Signs Packages** (if GPG keys are configured)
+   - Ensures package authenticity and integrity
+   - Required for APT repository distribution
+
+3. **Updates APT Repository**
+   - Makes packages available via `apt install fukura`
+   - Users get automatic updates through package manager
+
+4. **Publishes Docker Images**
+   - Updates `ghcr.io/boostbit-inc/fukura:latest`
+   - Multi-platform support (AMD64/ARM64)
+
+5. **Deploys Website**
+   - Updates `fukura.dev` with latest version
+   - Installation instructions reflect new release
+
+### Release Checklist
+
+Before creating a release, ensure:
+
+- [ ] All tests pass (`cargo test`)
+- [ ] Performance tests show no regression
+- [ ] Security audit passes (`cargo audit`)
+- [ ] Documentation is up to date
+- [ ] Version number follows semantic versioning
+- [ ] CHANGELOG.md is updated (if maintained)
 
 ## Questions?
 

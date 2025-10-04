@@ -62,6 +62,15 @@ fuku view <auto-note-id>
 fuku serve
 ```
 
+### 4. Performance Benefits
+
+Fukura includes several performance optimizations:
+
+- **Batch Processing**: Multiple notes are processed together for faster operations
+- **Memory Optimization**: Efficient memory usage during bulk operations
+- **Fast Search**: Optimized search with Tantivy full-text indexing
+- **Smart Caching**: Reduced I/O operations for better responsiveness
+
 ## 🔧 Manual Usage (Traditional)
 
 If you prefer manual control:
