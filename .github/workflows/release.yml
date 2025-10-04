@@ -99,6 +99,18 @@ jobs:
             fi
           done
 
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/boostbit-inc/fukura:${{ github.ref_name }}
+            ghcr.io/boostbit-inc/fukura:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Upload release artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
