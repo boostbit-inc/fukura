@@ -93,6 +93,28 @@ impl SearchIndex {
         Ok(())
     }
 
+    /// Add multiple notes efficiently in batch
+    pub fn add_notes_batch(&self, records: &[NoteRecord]) -> Result<()> {
+        let mut writer = self.index.writer(50_000_000)?;
+        for record in records {
+            let mut document = TantivyDocument::new();
+            document.add_text(self.fields.object_id, &record.object_id);
+            document.add_text(self.fields.title, &record.note.title);
+            document.add_text(self.fields.body, &record.note.body);
+            for tag in &record.note.tags {
+                document.add_text(self.fields.tags, tag);
+            }
+            document.add_text(self.fields.summary, make_summary(&record.note.body));
+            document.add_text(self.fields.author, &record.note.author.name);
+            document.add_text(self.fields.privacy, format_privacy(&record.note.privacy));
+            document.add_i64(self.fields.updated_at, record.note.updated_at.timestamp());
+            document.add_i64(self.fields.likes, total_likes(&record.note) as i64);
+            writer.add_document(document)?;
+        }
+        writer.commit()?;
+        Ok(())
+    }
+
     pub fn search(&self, query: &str, limit: usize, sort: SearchSort) -> Result<Vec<SearchHit>> {
         let limit = limit.max(1);
         let reader = self.index.reader()?;
@@ -233,7 +255,7 @@ fn build_schema() -> Schema {
     builder.build()
 }
 
-fn make_summary(body: &str) -> String {
+pub fn make_summary(body: &str) -> String {
     let mut lines = body.lines().filter(|line| !line.trim().is_empty());
     let preview: Vec<&str> = lines.by_ref().take(3).collect();
     let summary = preview.join(" ");
