@@ -74,9 +74,21 @@ jobs:
           echo "sarif-exists=false" >> $GITHUB_OUTPUT
         fi
 
+    - name: Display Trivy scan results
+      if: always() && steps.trivy.outcome == 'success'
+      run: |
+        if [ -f "trivy-results.sarif" ]; then
+          echo "✅ Trivy security scan completed successfully"
+          echo "📊 Scan results saved to trivy-results.sarif"
+          echo "🔍 You can review the results locally or integrate with your security tools"
+        else
+          echo "⚠️ Trivy scan completed but no SARIF file was generated"
+        fi
+
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
-      if: always() && github.event_name == 'push' && steps.check-sarif.outputs.sarif-exists == 'true' && github.repository == 'boostbit-inc/fukura'
+      if: false  # Temporarily disabled due to permission issues
       with:
         sarif_file: 'trivy-results.sarif'
+      continue-on-error: true
 
