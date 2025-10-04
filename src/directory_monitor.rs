@@ -13,7 +13,7 @@ pub struct DirectoryMonitor {
 impl DirectoryMonitor {
     pub fn new() -> Self {
         Self {
-            check_interval: Duration::from_secs(10),
+            check_interval: Duration::from_secs(30), // Reduced frequency for better performance
             monitored_paths: std::collections::HashSet::new(),
         }
     }
@@ -33,25 +33,38 @@ impl DirectoryMonitor {
         // Get all current working directories from running processes
         let current_dirs = self.get_active_directories().await?;
 
+        // Batch process directories for better performance
+        let mut new_dirs = Vec::new();
         for dir in current_dirs {
             let fukura_dir = dir.join(".fukura");
             if fukura_dir.exists() && !self.monitored_paths.contains(&dir) {
-                // Found a new .fukura directory, start daemon
-                let daemon_service = DaemonService::new(&dir);
+                new_dirs.push(dir);
+            }
+        }
 
-                if !daemon_service.is_running().await {
-                    if let Err(e) = daemon_service.start_background() {
-                        eprintln!("Failed to start daemon for {}: {}", dir.display(), e);
-                    } else {
-                        println!("🚀 Auto-started daemon for {}", dir.display());
-                        self.monitored_paths.insert(dir);
-                    }
+        // Start daemons for new directories
+        for dir in new_dirs {
+            let daemon_service = DaemonService::new(&dir);
+            if !daemon_service.is_running().await {
+                if let Err(e) = daemon_service.start_background() {
+                    eprintln!("Failed to start daemon for {}: {}", dir.display(), e);
+                } else {
+                    println!("🚀 Auto-started daemon for {}", dir.display());
+                    self.monitored_paths.insert(dir);
                 }
             }
         }
 
-        // Remove paths that no longer exist
-        self.monitored_paths.retain(|path| path.exists());
+        // Remove paths that no longer exist (optimize with batch check)
+        let mut to_remove = Vec::new();
+        for path in &self.monitored_paths {
+            if !path.exists() {
+                to_remove.push(path.clone());
+            }
+        }
+        for path in to_remove {
+            self.monitored_paths.remove(&path);
+        }
 
         Ok(())
     }

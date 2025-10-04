@@ -32,9 +32,9 @@ pub struct DaemonConfig {
 impl Default for DaemonConfig {
     fn default() -> Self {
         Self {
-            monitor_interval: Duration::from_secs(5),
-            session_timeout: Duration::from_secs(300), // 5 minutes
-            max_sessions: 100,
+            monitor_interval: Duration::from_secs(10), // Reduced frequency for better performance
+            session_timeout: Duration::from_secs(600), // 10 minutes - longer timeout
+            max_sessions: 50, // Reduced for better memory usage
             enable_clipboard_monitoring: false,
             enable_process_monitoring: true,
             error_threshold: 0.7,
@@ -322,22 +322,31 @@ impl FukuraDaemon {
         let mut sessions_guard = sessions.write().await;
         let now = SystemTime::now();
 
-        sessions_guard.retain(|_, session| {
-            now.duration_since(session.last_activity)
+        // Optimize: collect keys to remove first to avoid borrow checker issues
+        let mut to_remove = Vec::new();
+        let mut session_activities: Vec<(String, SystemTime)> = Vec::new();
+
+        for (id, session) in sessions_guard.iter() {
+            if now.duration_since(session.last_activity)
                 .unwrap_or(Duration::from_secs(0))
-                < config.session_timeout
-        });
+                >= config.session_timeout
+            {
+                to_remove.push(id.clone());
+            } else {
+                session_activities.push((id.clone(), session.last_activity));
+            }
+        }
 
-        // Limit number of sessions
+        // Remove timed out sessions
+        for id in to_remove {
+            sessions_guard.remove(&id);
+        }
+
+        // Limit number of sessions efficiently
         if sessions_guard.len() > config.max_sessions {
-            let mut session_list: Vec<_> = sessions_guard
-                .iter()
-                .map(|(k, v)| (k.clone(), v.last_activity))
-                .collect();
-            session_list.sort_by_key(|(_, last_activity)| *last_activity);
-
-            let to_remove = session_list.len() - config.max_sessions;
-            for (id, _) in session_list.iter().take(to_remove) {
+            session_activities.sort_by_key(|(_, last_activity)| *last_activity);
+            let to_remove_count = session_activities.len() - config.max_sessions;
+            for (id, _) in session_activities.iter().take(to_remove_count) {
                 sessions_guard.remove(id);
             }
         }

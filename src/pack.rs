@@ -50,19 +50,22 @@ pub fn pack_objects(repo: &FukuraRepo, prune: bool) -> Result<PackReport> {
     pack_file.write_all(&1u32.to_le_bytes())?;
     pack_file.write_all(&(objects.len() as u32).to_le_bytes())?;
 
+    // Pre-allocate buffer for better performance
+    let mut buffer = Vec::with_capacity(1024 * 1024); // 1MB buffer
+    
     for (object_id, path) in &objects {
-        let mut data = Vec::new();
+        buffer.clear();
         File::open(path)
             .with_context(|| format!("Failed to open {}", path.display()))?
-            .read_to_end(&mut data)?;
-        let length = data.len();
+            .read_to_end(&mut buffer)?;
+        let length = buffer.len();
         if length > u32::MAX as usize {
             bail!("Object {} is too large to pack", object_id);
         }
         let offset = pack_file.stream_position()?;
         pack_file.write_all(object_id.as_bytes())?;
         pack_file.write_all(&(length as u32).to_le_bytes())?;
-        pack_file.write_all(&data)?;
+        pack_file.write_all(&buffer)?;
         index.objects.push(PackIndexEntry {
             id: object_id.clone(),
             offset: offset + 64 + 4,

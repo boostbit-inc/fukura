@@ -188,10 +188,18 @@ impl SearchIndex {
                 privacy,
             });
         }
+        // Optimize sorting for large result sets
         match sort {
-            SearchSort::Relevance => {}
-            SearchSort::Updated => hits.sort_by(|a, b| b.updated_at.cmp(&a.updated_at)),
-            SearchSort::Likes => hits.sort_by(|a, b| b.likes.cmp(&a.likes)),
+            SearchSort::Relevance => {
+                // Already sorted by relevance score from tantivy
+            }
+            SearchSort::Updated => {
+                // Use unstable sort for better performance with large datasets
+                hits.sort_unstable_by(|a, b| b.updated_at.cmp(&a.updated_at));
+            }
+            SearchSort::Likes => {
+                hits.sort_unstable_by(|a, b| b.likes.cmp(&a.likes));
+            }
         }
         Ok(hits)
     }
