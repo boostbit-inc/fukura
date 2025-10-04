@@ -146,7 +146,7 @@ impl DaemonService {
         let exe_path = std::env::current_exe()?;
         let daemon_dir = self.repo_path.join(".fukura");
         let pid_file = self.get_pid_file_path();
-        let log_file = daemon_dir.join("daemon.log");
+        let _log_file = daemon_dir.join("daemon.log");
 
         // Create daemon directory if it doesn't exist
         std::fs::create_dir_all(&daemon_dir)?;

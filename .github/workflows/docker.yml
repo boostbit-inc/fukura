@@ -94,6 +94,7 @@ jobs:
           echo "📊 Scan results saved to trivy-results.sarif"
           echo "🔍 You can review the results locally or integrate with your security tools"
           echo "🚨 Critical and High severity vulnerabilities have been scanned"
+          echo "ℹ️ Note: SARIF upload requires GitHub Advanced Security to be enabled"
         else
           echo "⚠️ Trivy scan completed but no SARIF file was generated"
         fi
@@ -112,4 +113,6 @@ jobs:
       with:
         sarif_file: 'trivy-results.sarif'
       continue-on-error: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
