@@ -129,11 +129,16 @@ fn test_memory_usage() {
     }
 
     // Store all notes in batch for better performance
-    let records = repo.store_notes_batch(notes).expect("Failed to store notes in batch");
+    let records = repo
+        .store_notes_batch(notes)
+        .expect("Failed to store notes in batch");
     assert_eq!(records.len(), note_count);
 
     let duration = start.elapsed();
-    println!("Memory usage test with {} notes took: {:?}", note_count, duration);
+    println!(
+        "Memory usage test with {} notes took: {:?}",
+        note_count, duration
+    );
 
     // Final search to verify everything works
     let hits = repo

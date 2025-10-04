@@ -127,9 +127,9 @@ impl FukuraRepo {
     pub fn store_notes_batch(&self, notes: Vec<Note>) -> Result<Vec<NoteRecord>> {
         let cfg = FukuraConfig::load(&self.config_path())?;
         let redactor = Redactor::default_with_overrides(&cfg.redaction_overrides);
-        
+
         let mut records = Vec::new();
-        
+
         // Process all notes and create records
         for mut note in notes {
             // Redact content
@@ -148,16 +148,16 @@ impl FukuraRepo {
             };
             records.push(record);
         }
-        
+
         // Add all records to index in batch
         let index = SearchIndex::open_or_create(self)?;
         index.add_notes_batch(&records)?;
-        
+
         // Update latest ref with the last note
         if let Some(last_record) = records.last() {
             self.update_latest_ref(&last_record.object_id)?;
         }
-        
+
         Ok(records)
     }
 
