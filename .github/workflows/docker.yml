@@ -54,6 +54,7 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        no-cache: false
 
     - name: Run security scan
       id: trivy
