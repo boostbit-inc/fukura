@@ -91,6 +91,27 @@ cargo deny check
 cargo outdated
 ```
 
+### Performance Testing
+```bash
+# Run performance benchmarks
+cargo bench
+
+# Run memory usage tests
+cargo test --test performance
+
+# Check for performance regressions
+cargo test --test performance --release
+```
+
+### GitHub Actions Testing
+```bash
+# Test GitHub Actions configuration
+cargo test --test github_actions
+
+# Verify workflow files are valid
+# (GitHub Actions validates YAML syntax automatically)
+```
+
 ## Testing
 
 ### Unit Tests

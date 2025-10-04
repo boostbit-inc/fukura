@@ -97,6 +97,38 @@ fukura hook install                      # Install shell hooks for error capture
   5. uploads artifacts and publishes the GitHub Release via `cargo dist upload` (uses the built-in `GITHUB_TOKEN`).
 - `.github/workflows/site-deploy.yml` optionally pings `boostbit-inc/fukura-site` to redeploy `fukura.dev`.
 
+### 🚀 What happens when you release?
+
+When you create a release (by pushing a tag like `v0.2.0`), the following happens automatically:
+
+1. **GitHub Release Creation**
+   - Binary packages (`.deb`, `.rpm`, `.tar.gz`) are generated
+   - Release notes are published on GitHub Releases page
+   - Users can download packages directly from GitHub
+
+2. **APT Repository Update**
+   - Debian/Ubuntu users can install with: `sudo apt install fukura`
+   - Package signing ensures authenticity and integrity
+   - Automatic updates through system package manager
+
+3. **Docker Image Update**
+   - `ghcr.io/boostbit-inc/fukura:latest` is updated
+   - Users can run: `docker pull ghcr.io/boostbit-inc/fukura`
+   - Multi-platform support (Linux AMD64/ARM64)
+
+4. **Website Deployment**
+   - `fukura.dev` download page is automatically updated
+   - New version information is published
+   - Installation instructions reflect latest release
+
+### 📊 Performance Optimizations
+
+Recent improvements include:
+- **Batch Processing**: Multiple notes are processed together for better performance
+- **Memory Optimization**: Reduced memory allocations in pack processing
+- **Search Performance**: Unstable sorting for large result sets
+- **Daemon Efficiency**: Optimized session cleanup and directory monitoring
+
 ## 🛠️ Development
 
 ```bash
