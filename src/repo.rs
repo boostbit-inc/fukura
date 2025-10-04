@@ -123,6 +123,44 @@ impl FukuraRepo {
         Ok(record)
     }
 
+    /// Store multiple notes efficiently in batch
+    pub fn store_notes_batch(&self, notes: Vec<Note>) -> Result<Vec<NoteRecord>> {
+        let cfg = FukuraConfig::load(&self.config_path())?;
+        let redactor = Redactor::default_with_overrides(&cfg.redaction_overrides);
+        
+        let mut records = Vec::new();
+        
+        // Process all notes and create records
+        for mut note in notes {
+            // Redact content
+            note.body = redactor.redact(&note.body);
+            let mut redacted_meta = std::collections::BTreeMap::new();
+            for (key, value) in note.meta {
+                redacted_meta.insert(key, redactor.redact(&value));
+            }
+            note.meta = redacted_meta;
+
+            // Persist object
+            let object_id = self.persist_object("note", &note.canonical_bytes()?)?;
+            let record = NoteRecord {
+                object_id: object_id.clone(),
+                note: note.clone(),
+            };
+            records.push(record);
+        }
+        
+        // Add all records to index in batch
+        let index = SearchIndex::open_or_create(self)?;
+        index.add_notes_batch(&records)?;
+        
+        // Update latest ref with the last note
+        if let Some(last_record) = records.last() {
+            self.update_latest_ref(&last_record.object_id)?;
+        }
+        
+        Ok(records)
+    }
+
     pub fn load_note(&self, object_id: &str) -> Result<NoteRecord> {
         let object_bytes = self.load_object_bytes(object_id)?;
         let mut decoder = ZlibDecoder::new(std::io::Cursor::new(object_bytes));
