@@ -41,7 +41,7 @@ impl DaemonService {
 
         if cfg!(target_os = "windows") {
             Command::new("taskkill")
-                .args(&["/F", "/PID", &pid])
+                .args(["/F", "/PID", &pid])
                 .output()?;
         } else {
             Command::new("kill").arg(&pid).output()?;
@@ -66,7 +66,7 @@ impl DaemonService {
 
         if cfg!(target_os = "windows") {
             let output = Command::new("tasklist")
-                .args(&["/FI", &format!("PID eq {}", pid)])
+                .args(["/FI", &format!("PID eq {}", pid)])
                 .output()
                 .unwrap_or_else(|_| std::process::Output {
                     status: std::process::ExitStatus::default(),
@@ -98,7 +98,7 @@ impl DaemonService {
         // Start daemon in background using nohup with proper process detachment
         let mut cmd = Command::new("nohup");
         cmd.arg(&exe_path)
-            .args(&["daemon", "--foreground"])
+            .args(["daemon", "--foreground"])
             .current_dir(&self.repo_path)
             .stdout(Stdio::from(std::fs::File::create(&log_file)?))
             .stderr(Stdio::from(std::fs::File::create(&log_file)?))
@@ -130,7 +130,7 @@ impl DaemonService {
     /// Check if a process is running by PID (Unix)
     fn is_process_running(&self, pid: u32) -> bool {
         let output = Command::new("ps")
-            .args(&["-p", &pid.to_string()])
+            .args(["-p", &pid.to_string()])
             .output()
             .unwrap_or_else(|_| std::process::Output {
                 status: std::process::ExitStatus::default(),
@@ -332,7 +332,7 @@ impl AutoNoteDaemon {
             for error in &session.errors {
                 body.push_str(&format!("- **{}**: {}\n", error.source, error.message));
             }
-            body.push_str("\n");
+            body.push('\n');
         }
 
         // Add successful commands (solution steps)
@@ -347,7 +347,7 @@ impl AutoNoteDaemon {
             for (i, cmd) in successful_commands.iter().enumerate() {
                 body.push_str(&format!("{}. `{}`\n", i + 1, cmd.command));
             }
-            body.push_str("\n");
+            body.push('\n');
         }
 
         // Add all commands for context

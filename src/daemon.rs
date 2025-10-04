@@ -387,7 +387,7 @@ impl FukuraDaemon {
 
     async fn get_git_branch(&self, working_dir: &str) -> Result<String> {
         let output = tokio::process::Command::new("git")
-            .args(&["branch", "--show-current"])
+            .args(["branch", "--show-current"])
             .current_dir(working_dir)
             .output()
             .await?;
@@ -401,7 +401,7 @@ impl FukuraDaemon {
 
     async fn get_git_status(&self, working_dir: &str) -> Result<String> {
         let output = tokio::process::Command::new("git")
-            .args(&["status", "--porcelain"])
+            .args(["status", "--porcelain"])
             .current_dir(working_dir)
             .output()
             .await?;

@@ -217,7 +217,7 @@ impl HookManager {
 
     fn get_powershell_profile_path(&self) -> Result<std::path::PathBuf> {
         let output = Command::new("powershell")
-            .args(&["-Command", "$PROFILE"])
+            .args(["-Command", "$PROFILE"])
             .output()?;
 
         let profile_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -279,74 +279,69 @@ impl HookManager {
     // Hook content generators
 
     fn generate_bash_hook(&self) -> String {
-        format!(
-            r#"
+        r#"
 # Fukura hooks - bash
-_fukura_record_command() {{
+_fukura_record_command() {
     local exit_code=$?
-    local command="${{BASH_COMMAND}}"
+    local command="${BASH_COMMAND}"
     local working_dir="$PWD"
     
     # Record command with exit code
     fukura daemon record-command "$(pwd | tr '/' '_')" "$command" "$exit_code" "$working_dir" 2>/dev/null || true
-}}
+}
 
 # Hook into command execution
 trap '_fukura_record_command' DEBUG
 
 # Hook into prompt to capture errors
-_fukura_prompt_hook() {{
+_fukura_prompt_hook() {
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
         # Record the last command as an error
         fukura daemon record-error "$(pwd | tr '/' '_')" "Command failed with exit code $exit_code" "bash" 2>/dev/null || true
     fi
-}}
+}
 
 # Add to prompt command
 if [[ -z "$PROMPT_COMMAND" ]]; then
     PROMPT_COMMAND="_fukura_prompt_hook"
 else
-    PROMPT_COMMAND="${{PROMPT_COMMAND}}; _fukura_prompt_hook"
+    PROMPT_COMMAND="${PROMPT_COMMAND}; _fukura_prompt_hook"
 fi
-"#
-        )
+"#.to_string()
     }
 
     fn generate_zsh_hook(&self) -> String {
-        format!(
-            r#"
+        r#"
 # Fukura hooks - zsh
-_fukura_record_command() {{
+_fukura_record_command() {
     local exit_code=$?
-    local command="${{history[${{#history}}]}}"
+    local command="${history[${#history}]}"
     local working_dir="$PWD"
     
     # Record command with exit code
     fukura daemon record-command "$(pwd | tr '/' '_')" "$command" "$exit_code" "$working_dir" 2>/dev/null || true
-}}
+}
 
 # Hook into command execution
 preexec_functions+=(_fukura_record_command)
 
 # Hook into prompt to capture errors
-_fukura_prompt_hook() {{
+_fukura_prompt_hook() {
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
         # Record the last command as an error
         fukura daemon record-error "$(pwd | tr '/' '_')" "Command failed with exit code $exit_code" "zsh" 2>/dev/null || true
     fi
-}}
+}
 
 # Add to prompt hook
 precmd_functions+=(_fukura_prompt_hook)
-"#
-        )
+"#.to_string()
     }
 
     fn generate_fish_hook(&self) -> String {
-        format!(
-            r#"
+        r#"
 # Fukura hooks - fish
 function _fukura_record_command --on-event fish_prompt
     set -l exit_code $status
@@ -364,13 +359,11 @@ function _fukura_record_error --on-event fish_postexec
         fukura daemon record-error (pwd | tr '/' '_') "Command failed with exit code $exit_code" "fish" 2>/dev/null || true
     end
 end
-"#
-        )
+"#.to_string()
     }
 
     fn generate_powershell_hook(&self) -> String {
-        format!(
-            r#"
+        r#"
 # Fukura hooks - PowerShell
 function _fukura_record_command {{
     param($command, $exitCode, $workingDir)
@@ -393,8 +386,7 @@ function Invoke-Expression {{
         throw
     }}
 }}
-"#
-        )
+"#.to_string()
     }
 }
 
