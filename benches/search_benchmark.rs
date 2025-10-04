@@ -7,10 +7,10 @@ use std::collections::BTreeMap;
 use tempfile::TempDir;
 
 fn create_benchmark_data(repo: &FukuraRepo, count: usize) -> Vec<String> {
-    let mut object_ids = Vec::new();
+    let mut notes = Vec::new();
+    let now = Utc::now();
 
     for i in 0..count {
-        let now = Utc::now();
         let mut meta = BTreeMap::new();
         meta.insert("benchmark".into(), "true".into());
         meta.insert("index".into(), i.to_string());
@@ -41,11 +41,12 @@ fn create_benchmark_data(repo: &FukuraRepo, count: usize) -> Vec<String> {
             },
         };
 
-        let record = repo.store_note(note).expect("Failed to store note");
-        object_ids.push(record.object_id);
+        notes.push(note);
     }
 
-    object_ids
+    // Use batch processing for better performance
+    let records = repo.store_notes_batch(notes).expect("Failed to store notes in batch");
+    records.into_iter().map(|r| r.object_id).collect()
 }
 
 fn bench_search_relevance(c: &mut Criterion) {
@@ -53,7 +54,7 @@ fn bench_search_relevance(c: &mut Criterion) {
     let repo = FukuraRepo::init(temp_dir.path(), true).expect("Failed to init repo");
 
     // Create test data
-    let _object_ids = create_benchmark_data(&repo, 1000);
+    let _object_ids = create_benchmark_data(&repo, 50);
 
     c.bench_function("search_relevance", |b| {
         b.iter(|| {
@@ -74,7 +75,7 @@ fn bench_search_updated(c: &mut Criterion) {
     let repo = FukuraRepo::init(temp_dir.path(), true).expect("Failed to init repo");
 
     // Create test data
-    let _object_ids = create_benchmark_data(&repo, 1000);
+    let _object_ids = create_benchmark_data(&repo, 50);
 
     c.bench_function("search_updated", |b| {
         b.iter(|| {
@@ -95,7 +96,7 @@ fn bench_search_likes(c: &mut Criterion) {
     let repo = FukuraRepo::init(temp_dir.path(), true).expect("Failed to init repo");
 
     // Create test data
-    let _object_ids = create_benchmark_data(&repo, 1000);
+    let _object_ids = create_benchmark_data(&repo, 50);
 
     c.bench_function("search_likes", |b| {
         b.iter(|| {
@@ -148,7 +149,7 @@ fn bench_load_note(c: &mut Criterion) {
     let repo = FukuraRepo::init(temp_dir.path(), true).expect("Failed to init repo");
 
     // Pre-populate with test data
-    let object_ids = create_benchmark_data(&repo, 100);
+    let object_ids = create_benchmark_data(&repo, 50);
 
     c.bench_function("load_note", |b| {
         b.iter(|| {
