@@ -11,7 +11,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Cargo.toml and Cargo.lock to leverage Docker cache
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
+COPY Cargo.lock ./
+
+# Verify files exist
+RUN ls -la Cargo.toml Cargo.lock
 
 # Create dummy files to cache dependencies
 RUN mkdir src && echo "fn main() {}" > src/main.rs
