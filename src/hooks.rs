@@ -26,7 +26,7 @@ impl HookManager {
     /// Install hooks for the current shell
     pub fn install_hooks(&self) -> Result<()> {
         let shell = self.detect_shell()?;
-        
+
         match shell {
             ShellType::Bash => self.install_bash_hooks(),
             ShellType::Zsh => self.install_zsh_hooks(),
@@ -42,7 +42,7 @@ impl HookManager {
     /// Uninstall hooks
     pub fn uninstall_hooks(&self) -> Result<()> {
         let shell = self.detect_shell()?;
-        
+
         match shell {
             ShellType::Bash => self.uninstall_bash_hooks(),
             ShellType::Zsh => self.uninstall_zsh_hooks(),
@@ -54,7 +54,7 @@ impl HookManager {
     /// Check if hooks are installed
     pub fn are_hooks_installed(&self) -> Result<bool> {
         let shell = self.detect_shell()?;
-        
+
         match shell {
             ShellType::Bash => self.check_bash_hooks(),
             ShellType::Zsh => self.check_zsh_hooks(),
@@ -84,35 +84,35 @@ impl HookManager {
     fn install_bash_hooks(&self) -> Result<()> {
         let bashrc_path = self.get_bashrc_path()?;
         let hook_content = self.generate_bash_hook();
-        
+
         if !self.is_hook_installed(&bashrc_path, "fukura")? {
             self.append_to_file(&bashrc_path, &hook_content)?;
             println!("✅ Installed Fukura hooks for bash");
         } else {
             println!("ℹ️  Fukura hooks already installed for bash");
         }
-        
+
         Ok(())
     }
 
     fn install_zsh_hooks(&self) -> Result<()> {
         let zshrc_path = self.get_zshrc_path()?;
         let hook_content = self.generate_zsh_hook();
-        
+
         if !self.is_hook_installed(&zshrc_path, "fukura")? {
             self.append_to_file(&zshrc_path, &hook_content)?;
             println!("✅ Installed Fukura hooks for zsh");
         } else {
             println!("ℹ️  Fukura hooks already installed for zsh");
         }
-        
+
         Ok(())
     }
 
     fn install_fish_hooks(&self) -> Result<()> {
         let fish_config_dir = self.get_fish_config_dir()?;
         let hook_file = fish_config_dir.join("fukura_hooks.fish");
-        
+
         if !hook_file.exists() {
             let hook_content = self.generate_fish_hook();
             fs::write(&hook_file, hook_content)?;
@@ -120,21 +120,21 @@ impl HookManager {
         } else {
             println!("ℹ️  Fukura hooks already installed for fish");
         }
-        
+
         Ok(())
     }
 
     fn install_powershell_hooks(&self) -> Result<()> {
         let profile_path = self.get_powershell_profile_path()?;
         let hook_content = self.generate_powershell_hook();
-        
+
         if !self.is_hook_installed(&profile_path, "fukura")? {
             self.append_to_file(&profile_path, &hook_content)?;
             println!("✅ Installed Fukura hooks for PowerShell");
         } else {
             println!("ℹ️  Fukura hooks already installed for PowerShell");
         }
-        
+
         Ok(())
     }
 
@@ -155,12 +155,12 @@ impl HookManager {
     fn uninstall_fish_hooks(&self) -> Result<()> {
         let fish_config_dir = self.get_fish_config_dir()?;
         let hook_file = fish_config_dir.join("fukura_hooks.fish");
-        
+
         if hook_file.exists() {
             fs::remove_file(&hook_file)?;
             println!("✅ Uninstalled Fukura hooks for fish");
         }
-        
+
         Ok(())
     }
 
@@ -211,7 +211,7 @@ impl HookManager {
             std::env::var("XDG_CONFIG_HOME")
                 .or_else(|_| std::env::var("HOME").map(|h| format!("{}/.config", h)))?
         };
-        
+
         Ok(std::path::PathBuf::from(config_dir).join("fish"))
     }
 
@@ -219,7 +219,7 @@ impl HookManager {
         let output = Command::new("powershell")
             .args(&["-Command", "$PROFILE"])
             .output()?;
-        
+
         let profile_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
         Ok(std::path::PathBuf::from(profile_path))
     }
@@ -230,7 +230,7 @@ impl HookManager {
         if !file_path.exists() {
             return Ok(false);
         }
-        
+
         let content = fs::read_to_string(file_path)?;
         Ok(content.contains(&format!("# Fukura hooks - {}", hook_name)))
     }
@@ -251,27 +251,27 @@ impl HookManager {
         if !file_path.exists() {
             return Ok(());
         }
-        
+
         let content = fs::read_to_string(file_path)?;
         let lines: Vec<&str> = content.lines().collect();
         let mut new_lines = Vec::new();
         let mut in_hook_section = false;
-        
+
         for line in lines {
             if line.contains(&format!("# Fukura hooks - {}", hook_name)) {
                 in_hook_section = true;
                 continue;
             }
-            
+
             if in_hook_section && line.trim().is_empty() && !line.contains("# Fukura hooks") {
                 in_hook_section = false;
             }
-            
+
             if !in_hook_section {
                 new_lines.push(line);
             }
         }
-        
+
         fs::write(file_path, new_lines.join("\n"))?;
         Ok(())
     }
@@ -279,7 +279,8 @@ impl HookManager {
     // Hook content generators
 
     fn generate_bash_hook(&self) -> String {
-        format!(r#"
+        format!(
+            r#"
 # Fukura hooks - bash
 _fukura_record_command() {{
     local exit_code=$?
@@ -308,11 +309,13 @@ if [[ -z "$PROMPT_COMMAND" ]]; then
 else
     PROMPT_COMMAND="${{PROMPT_COMMAND}}; _fukura_prompt_hook"
 fi
-"#)
+"#
+        )
     }
 
     fn generate_zsh_hook(&self) -> String {
-        format!(r#"
+        format!(
+            r#"
 # Fukura hooks - zsh
 _fukura_record_command() {{
     local exit_code=$?
@@ -337,11 +340,13 @@ _fukura_prompt_hook() {{
 
 # Add to prompt hook
 precmd_functions+=(_fukura_prompt_hook)
-"#)
+"#
+        )
     }
 
     fn generate_fish_hook(&self) -> String {
-        format!(r#"
+        format!(
+            r#"
 # Fukura hooks - fish
 function _fukura_record_command --on-event fish_prompt
     set -l exit_code $status
@@ -359,11 +364,13 @@ function _fukura_record_error --on-event fish_postexec
         fukura daemon record-error (pwd | tr '/' '_') "Command failed with exit code $exit_code" "fish" 2>/dev/null || true
     end
 end
-"#)
+"#
+        )
     }
 
     fn generate_powershell_hook(&self) -> String {
-        format!(r#"
+        format!(
+            r#"
 # Fukura hooks - PowerShell
 function _fukura_record_command {{
     param($command, $exitCode, $workingDir)
@@ -386,7 +393,8 @@ function Invoke-Expression {{
         throw
     }}
 }}
-"#)
+"#
+        )
     }
 }
 
@@ -407,7 +415,7 @@ mod tests {
         std::env::set_var("SHELL", "/bin/bash");
         let temp_dir = TempDir::new().unwrap();
         let manager = HookManager::new(temp_dir.path());
-        
+
         let shell = manager.detect_shell().unwrap();
         assert!(matches!(shell, ShellType::Bash));
     }
@@ -416,11 +424,11 @@ mod tests {
     fn test_hook_content_generation() {
         let temp_dir = TempDir::new().unwrap();
         let manager = HookManager::new(temp_dir.path());
-        
+
         let bash_hook = manager.generate_bash_hook();
         assert!(bash_hook.contains("fukura daemon"));
         assert!(bash_hook.contains("bash"));
-        
+
         let zsh_hook = manager.generate_zsh_hook();
         assert!(zsh_hook.contains("fukura daemon"));
         assert!(zsh_hook.contains("zsh"));

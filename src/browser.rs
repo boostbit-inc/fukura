@@ -68,7 +68,10 @@ impl BrowserOpener {
         if status.success() {
             Ok(())
         } else {
-            Err(anyhow::anyhow!("xdg-open failed with exit code: {}", status))
+            Err(anyhow::anyhow!(
+                "xdg-open failed with exit code: {}",
+                status
+            ))
         }
     }
 
@@ -88,14 +91,17 @@ impl BrowserOpener {
         if status.success() {
             Ok(())
         } else {
-            Err(anyhow::anyhow!("open command failed with exit code: {}", status))
+            Err(anyhow::anyhow!(
+                "open command failed with exit code: {}",
+                status
+            ))
         }
     }
 
     /// Try using the BROWSER environment variable
     fn try_browser_env(path: &Path) -> Result<()> {
         let browser = std::env::var("BROWSER").context("BROWSER environment variable not set")?;
-        
+
         let status = Command::new(&browser)
             .arg(path)
             .stdout(Stdio::null())
@@ -106,7 +112,10 @@ impl BrowserOpener {
         if status.success() {
             Ok(())
         } else {
-            Err(anyhow::anyhow!("Browser from BROWSER env var failed with exit code: {}", status))
+            Err(anyhow::anyhow!(
+                "Browser from BROWSER env var failed with exit code: {}",
+                status
+            ))
         }
     }
 
@@ -135,7 +144,10 @@ impl BrowserOpener {
         if status.success() {
             Ok(())
         } else {
-            Err(anyhow::anyhow!("Windows default browser failed with exit code: {}", status))
+            Err(anyhow::anyhow!(
+                "Windows default browser failed with exit code: {}",
+                status
+            ))
         }
     }
 
@@ -147,8 +159,14 @@ impl BrowserOpener {
     /// Try Linux default browser
     fn try_linux_default(path: &Path) -> Result<()> {
         // Try common Linux browsers
-        let browsers = ["firefox", "google-chrome", "chromium", "brave-browser", "opera"];
-        
+        let browsers = [
+            "firefox",
+            "google-chrome",
+            "chromium",
+            "brave-browser",
+            "opera",
+        ];
+
         for browser in &browsers {
             if let Ok(_) = which::which(browser) {
                 let status = Command::new(browser)
@@ -171,10 +189,9 @@ impl BrowserOpener {
     pub fn open_with_server(html_content: &str, filename: &str) -> Result<()> {
         let temp_dir = std::env::temp_dir();
         let file_path = temp_dir.join(filename);
-        
+
         // Write HTML content to temporary file
-        std::fs::write(&file_path, html_content)
-            .context("Failed to write HTML file")?;
+        std::fs::write(&file_path, html_content).context("Failed to write HTML file")?;
 
         // Try to open the file directly first
         if Self::open(&file_path).is_ok() {
@@ -189,7 +206,7 @@ impl BrowserOpener {
     fn start_local_server(file_path: &Path) -> Result<()> {
         let port = Self::find_available_port()?;
         let url = format!("http://localhost:{}", port);
-        
+
         // Start a simple HTTP server in a separate thread
         let server_path = file_path.to_path_buf();
         thread::spawn(move || {
@@ -213,8 +230,8 @@ impl BrowserOpener {
 
     /// Find an available port for the HTTP server
     fn find_available_port() -> Result<u16> {
-        use std::net::{TcpListener, SocketAddr};
-        
+        use std::net::{SocketAddr, TcpListener};
+
         // Try ports from 8080 to 8090
         for port in 8080..8090 {
             if let Ok(listener) = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port))) {
@@ -222,7 +239,7 @@ impl BrowserOpener {
                 return Ok(port);
             }
         }
-        
+
         Err(anyhow::anyhow!("No available ports found"))
     }
 
@@ -232,7 +249,7 @@ impl BrowserOpener {
         use std::thread;
 
         let listener = TcpListener::bind(format!("127.0.0.1:{}", port))?;
-        
+
         // Read the HTML content
         let html_content = std::fs::read_to_string(file_path)?;
         let content_length = html_content.len();
@@ -240,21 +257,25 @@ impl BrowserOpener {
         for stream in listener.incoming() {
             let stream = stream?;
             let html_content = html_content.clone();
-            
+
             thread::spawn(move || {
                 if let Err(e) = Self::handle_http_request(stream, &html_content, content_length) {
                     eprintln!("HTTP request error: {}", e);
                 }
             });
         }
-        
+
         Ok(())
     }
 
     /// Handle HTTP request
-    fn handle_http_request(mut stream: std::net::TcpStream, html_content: &str, content_length: usize) -> Result<()> {
+    fn handle_http_request(
+        mut stream: std::net::TcpStream,
+        html_content: &str,
+        content_length: usize,
+    ) -> Result<()> {
         use std::io::{Read, Write};
-        
+
         let mut buffer = [0; 1024];
         stream.read(&mut buffer)?;
 
@@ -265,8 +286,7 @@ impl BrowserOpener {
              Connection: close\r\n\
              \r\n\
              {}",
-            content_length,
-            html_content
+            content_length, html_content
         );
 
         stream.write_all(response.as_bytes())?;

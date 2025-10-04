@@ -221,10 +221,7 @@ pub struct OpenCommand {
     )]
     theme: String,
 
-    #[arg(
-        long,
-        help = "Force opening in browser (skip local server fallback)"
-    )]
+    #[arg(long, help = "Force opening in browser (skip local server fallback)")]
     browser_only: bool,
 
     #[arg(
@@ -402,7 +399,7 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
         cmd.path.clone()
     };
     let repo = FukuraRepo::init(&path, cmd.force)?;
-    
+
     if !cli.quiet {
         println!(
             "{} Initialized Fukura vault at {}",
@@ -410,7 +407,7 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
             repo.root().display()
         );
     }
-    
+
     // Auto-start daemon after init
     if !cmd.no_daemon {
         if !cli.quiet {
@@ -419,22 +416,19 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
                 "🚀".green()
             );
         }
-        
+
         // Start daemon in background
         crate::daemon_service::start_background_daemon(&repo)?;
-        
+
         if !cli.quiet {
-            println!(
-                "{} Automatic error capture is now active!",
-                "🎯".blue()
-            );
+            println!("{} Automatic error capture is now active!", "🎯".blue());
             println!(
                 "{} Use 'fuku daemon --status' to check daemon status",
                 "💡".cyan()
             );
         }
     }
-    
+
     // Install shell hooks automatically
     if !cmd.no_hooks {
         let hook_manager = crate::hooks::HookManager::new(repo.root());
@@ -447,20 +441,17 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
                 );
             }
         } else if !cli.quiet {
-            println!(
-                "{} Shell hooks installed successfully",
-                "✅".green()
-            );
+            println!("{} Shell hooks installed successfully", "✅".green());
         }
     }
-    
+
     if !cli.quiet {
         println!(
             "{}  Next: fuku add --title 'Proxy install failure'",
             "›".dimmed()
         );
     }
-    
+
     Ok(())
 }
 
@@ -597,52 +588,34 @@ fn handle_open(cli: &Cli, cmd: &OpenCommand) -> Result<()> {
     let theme = cmd.theme.to_lowercase();
     let html = render_note_html(&record, &theme)?;
     let filename = format!("fuku-{}.html", resolved);
-    
+
     if cmd.url_only {
         // Just show the URL for manual opening
         let file_path = std::env::temp_dir().join(&filename);
         fs::write(&file_path, html)?;
-        
+
         if !cli.quiet {
-            println!(
-                "{} Note saved to: {}",
-                "📁".blue(),
-                file_path.display()
-            );
-            println!(
-                "{} Open this file in your browser manually",
-                "💡".yellow()
-            );
+            println!("{} Note saved to: {}", "📁".blue(), file_path.display());
+            println!("{} Open this file in your browser manually", "💡".yellow());
         }
         return Ok(());
     }
-    
+
     if cmd.browser_only {
         // Try direct browser opening only
         let file_path = std::env::temp_dir().join(&filename);
         fs::write(&file_path, html)?;
-        
+
         match crate::browser::BrowserOpener::open(&file_path) {
             Ok(()) => {
                 if !cli.quiet {
-                    println!(
-                        "{} Opened note in your browser",
-                        "🌈".magenta()
-                    );
+                    println!("{} Opened note in your browser", "🌈".magenta());
                 }
             }
             Err(e) => {
                 if !cli.quiet {
-                    println!(
-                        "{} Could not open browser: {}",
-                        "❌".red(),
-                        e
-                    );
-                    println!(
-                        "{} File saved to: {}",
-                        "📁".blue(),
-                        file_path.display()
-                    );
+                    println!("{} Could not open browser: {}", "❌".red(), e);
+                    println!("{} File saved to: {}", "📁".blue(), file_path.display());
                 }
                 return Err(e);
             }
@@ -652,17 +625,14 @@ fn handle_open(cli: &Cli, cmd: &OpenCommand) -> Result<()> {
         match crate::browser::BrowserOpener::open_with_server(&html, &filename) {
             Ok(()) => {
                 if !cli.quiet {
-                    println!(
-                        "{} Opened note in your browser",
-                        "🌈".magenta()
-                    );
+                    println!("{} Opened note in your browser", "🌈".magenta());
                 }
             }
             Err(e) => {
                 // Fallback: save to file and show path
                 let file_path = std::env::temp_dir().join(&filename);
                 fs::write(&file_path, html)?;
-                
+
                 if !cli.quiet {
                     println!(
                         "{} Could not open browser automatically: {}",
@@ -678,7 +648,7 @@ fn handle_open(cli: &Cli, cmd: &OpenCommand) -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -787,9 +757,9 @@ fn parse_redaction_entry(entry: &str) -> Result<(String, String)> {
 fn get_interactive_body() -> Result<String> {
     use dialoguer::theme::ColorfulTheme;
     use dialoguer::Input;
-    
+
     println!("📝 Enter your note content (press Ctrl+D or Ctrl+Z when finished):");
-    
+
     let mut body = String::new();
     loop {
         match Input::<String>::with_theme(&ColorfulTheme::default())
@@ -810,11 +780,11 @@ fn get_interactive_body() -> Result<String> {
             }
         }
     }
-    
+
     if body.trim().is_empty() {
         bail!("Note body cannot be empty");
     }
-    
+
     Ok(body.trim().to_string())
 }
 
@@ -1150,7 +1120,9 @@ fn render_note_html(record: &NoteRecord, theme: &str) -> Result<String> {
         updated = record.note.updated_at.format("%Y-%m-%d %H:%M UTC"),
         created = record.note.created_at.format("%Y-%m-%d %H:%M UTC"),
         author = html_escape::encode_text(&record.note.author.name),
-        privacy = format_privacy(&record.note.privacy).to_string().to_uppercase(),
+        privacy = format_privacy(&record.note.privacy)
+            .to_string()
+            .to_uppercase(),
         object_id = record.object_id,
     ))
 }
@@ -1548,16 +1520,15 @@ fn run_search_tui(repo: &FukuraRepo, query: &str, sort: SearchSort, limit: usize
 fn handle_open_inline(record: &NoteRecord) -> Result<()> {
     let html = render_note_html(record, "dark")?;
     let filename = format!("fuku-{}.html", record.object_id);
-    
+
     // Use the new cross-platform browser opener
-    crate::browser::BrowserOpener::open_with_server(&html, &filename)
-        .or_else(|_| {
-            // Fallback: save to file and try direct opening
-            let file_path = std::env::temp_dir().join(&filename);
-            fs::write(&file_path, html)?;
-            crate::browser::BrowserOpener::open(&file_path)
-        })?;
-    
+    crate::browser::BrowserOpener::open_with_server(&html, &filename).or_else(|_| {
+        // Fallback: save to file and try direct opening
+        let file_path = std::env::temp_dir().join(&filename);
+        fs::write(&file_path, html)?;
+        crate::browser::BrowserOpener::open(&file_path)
+    })?;
+
     Ok(())
 }
 
@@ -1633,15 +1604,19 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
     let repo = open_repo(cli)?;
     let config = crate::daemon::DaemonConfig::default();
     let daemon = crate::daemon::FukuraDaemon::new(repo.root(), config)?;
-    
+
     if cmd.status {
         // Show daemon status
         let daemon_service = crate::daemon_service::DaemonService::new(repo.root());
-        
+
         if !cli.quiet {
             if daemon_service.is_running().await {
                 println!("{} Daemon status: {}", "📊".blue(), "Running".green());
-                println!("{} PID file: {}", "📁".blue(), daemon_service.get_pid_file_path().display());
+                println!(
+                    "{} PID file: {}",
+                    "📁".blue(),
+                    daemon_service.get_pid_file_path().display()
+                );
             } else {
                 println!("{} Daemon status: {}", "📊".blue(), "Stopped".red());
             }
@@ -1649,7 +1624,7 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
     } else if cmd.stop {
         // Stop daemon
         let daemon_service = crate::daemon_service::DaemonService::new(repo.root());
-        
+
         if daemon_service.is_running().await {
             daemon_service.stop_background().await?;
             if !cli.quiet {
@@ -1663,7 +1638,7 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
     } else if cmd.record_command.is_some() || cmd.record_error.is_some() || cmd.check_solutions {
         // Handle individual commands
         let session_id = "cli_session";
-        
+
         if let Some(command) = &cmd.record_command {
             let exit_code = std::process::Command::new("sh")
                 .arg("-c")
@@ -1671,22 +1646,31 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
                 .status()
                 .map(|s| s.code().unwrap_or(1))
                 .unwrap_or(1);
-            
-            daemon.record_command(session_id, command, Some(exit_code), ".").await?;
+
+            daemon
+                .record_command(session_id, command, Some(exit_code), ".")
+                .await?;
         }
-        
+
         if let Some(error) = &cmd.record_error {
             daemon.record_error(session_id, error, "cli").await?;
         }
-        
+
         if cmd.check_solutions {
             let solutions = daemon.check_solutions(session_id).await?;
             if !solutions.is_empty() {
                 if !cli.quiet {
-                    println!("{} Found {} potential solutions:", "💡".yellow(), solutions.len());
+                    println!(
+                        "{} Found {} potential solutions:",
+                        "💡".yellow(),
+                        solutions.len()
+                    );
                     for solution in solutions {
-                        println!("  - {} (confidence: {:.1}%)", 
-                                solution.solution, solution.confidence * 100.0);
+                        println!(
+                            "  - {} (confidence: {:.1}%)",
+                            solution.solution,
+                            solution.confidence * 100.0
+                        );
                     }
                 }
             } else {
@@ -1703,7 +1687,7 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
                 println!("{} Press Ctrl+C to stop", "💡".blue());
             }
             daemon.start().await?;
-            
+
             // Keep running until interrupted
             tokio::signal::ctrl_c().await?;
             daemon.stop().await?;
@@ -1713,30 +1697,36 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
         } else {
             // Start daemon in background (default)
             let daemon_service = crate::daemon_service::DaemonService::new(repo.root());
-            
+
             if daemon_service.is_running().await {
                 if !cli.quiet {
                     println!("{} Daemon is already running", "✅".green());
-                    println!("{} Use 'fukura daemon --status' to check status", "💡".blue());
+                    println!(
+                        "{} Use 'fukura daemon --status' to check status",
+                        "💡".blue()
+                    );
                 }
             } else {
                 daemon_service.start_background()?;
                 if !cli.quiet {
                     println!("{} Daemon started in background", "🚀".green());
                     println!("{} Now monitoring for errors automatically", "👀".blue());
-                    println!("{} Use 'fukura daemon --status' to check status", "💡".blue());
+                    println!(
+                        "{} Use 'fukura daemon --status' to check status",
+                        "💡".blue()
+                    );
                 }
             }
         }
     }
-    
+
     Ok(())
 }
 
 fn handle_hook(cli: &Cli, cmd: &HookCommand) -> Result<()> {
     let repo = open_repo(cli)?;
     let hook_manager = crate::hooks::HookManager::new(repo.root());
-    
+
     if cmd.status {
         let installed = hook_manager.are_hooks_installed()?;
         if !cli.quiet {
@@ -1759,7 +1749,7 @@ fn handle_hook(cli: &Cli, cmd: &HookCommand) -> Result<()> {
             println!("  --status    Check hook installation status");
         }
     }
-    
+
     Ok(())
 }
 
@@ -1768,18 +1758,21 @@ async fn handle_monitor(cli: &Cli, cmd: &MonitorCommand) -> Result<()> {
         // Auto-start daemon for current directory
         let cwd = std::env::current_dir()?;
         let fukura_dir = cwd.join(".fukura");
-        
+
         if !fukura_dir.exists() {
             if !cli.quiet {
-                println!("{} No .fukura directory found in current directory", "❌".red());
+                println!(
+                    "{} No .fukura directory found in current directory",
+                    "❌".red()
+                );
                 println!("{} Run 'fuku init' first", "💡".cyan());
             }
             return Ok(());
         }
-        
+
         let _repo = FukuraRepo::discover(Some(&cwd))?;
         let daemon_service = crate::daemon_service::DaemonService::new(&cwd);
-        
+
         if !daemon_service.is_running().await {
             daemon_service.start_background()?;
             if !cli.quiet {
@@ -1787,7 +1780,11 @@ async fn handle_monitor(cli: &Cli, cmd: &MonitorCommand) -> Result<()> {
             }
         } else {
             if !cli.quiet {
-                println!("{} Daemon already running for {}", "✅".green(), cwd.display());
+                println!(
+                    "{} Daemon already running for {}",
+                    "✅".green(),
+                    cwd.display()
+                );
             }
         }
     } else if cmd.start {
@@ -1795,23 +1792,26 @@ async fn handle_monitor(cli: &Cli, cmd: &MonitorCommand) -> Result<()> {
         if !cli.quiet {
             println!("{} Starting directory monitoring...", "🔍".blue());
         }
-        
+
         let mut monitor = crate::directory_monitor::DirectoryMonitor::new();
         monitor.start_monitoring().await?;
     } else if cmd.stop {
         // Stop directory monitoring (not implemented yet)
         if !cli.quiet {
-            println!("{} Directory monitoring stop not implemented yet", "⚠️".yellow());
+            println!(
+                "{} Directory monitoring stop not implemented yet",
+                "⚠️".yellow()
+            );
         }
     } else if cmd.status {
         // Check monitoring status
         let cwd = std::env::current_dir()?;
         let fukura_dir = cwd.join(".fukura");
-        
+
         if fukura_dir.exists() {
             let daemon_service = crate::daemon_service::DaemonService::new(&cwd);
             let is_running = daemon_service.is_running().await;
-            
+
             if !cli.quiet {
                 if is_running {
                     println!("{} Daemon is running for {}", "✅".green(), cwd.display());
@@ -1821,7 +1821,10 @@ async fn handle_monitor(cli: &Cli, cmd: &MonitorCommand) -> Result<()> {
             }
         } else {
             if !cli.quiet {
-                println!("{} No .fukura directory found in current directory", "❌".red());
+                println!(
+                    "{} No .fukura directory found in current directory",
+                    "❌".red()
+                );
             }
         }
     } else {
@@ -1834,6 +1837,6 @@ async fn handle_monitor(cli: &Cli, cmd: &MonitorCommand) -> Result<()> {
             println!("  --status      Check monitoring status");
         }
     }
-    
+
     Ok(())
 }
