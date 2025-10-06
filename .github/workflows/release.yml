@@ -61,8 +61,8 @@ jobs:
           echo "Building release artifacts for target: ${{ matrix.target }}"
           echo "Matrix target value: '${{ matrix.target }}'"
           echo "CARGO_TARGET_DIR: $CARGO_TARGET_DIR"
-          # Latest cargo-dist requires cargo: prefix for targets
-          dist build --target "cargo:${{ matrix.target }}" --artifacts all
+          # Latest cargo-dist 0.30.0 syntax
+          dist build --target "${{ matrix.target }}" --artifacts all
 
       - name: Sign Linux packages
         env:
