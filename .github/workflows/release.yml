@@ -49,13 +49,13 @@ jobs:
         run: |
           source "$HOME/.cargo/env"
           cargo install cargo-dist --locked
-          # Verify installation
-          if [ ! -f "$HOME/.cargo/bin/cargo-dist" ]; then
-            echo "Error: cargo-dist binary not found after installation"
+          # Verify installation (binary name is 'dist', not 'cargo-dist')
+          if [ ! -f "$HOME/.cargo/bin/dist" ]; then
+            echo "Error: dist binary not found after installation"
             exit 1
           fi
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          $HOME/.cargo/bin/cargo-dist --version
+          $HOME/.cargo/bin/dist --version
           echo "cargo-dist installed successfully"
 
       - name: Build & Test
@@ -69,9 +69,8 @@ jobs:
           echo "Building release artifacts for target: ${{ matrix.target }}"
           echo "Matrix target value: '${{ matrix.target }}'"
           echo "CARGO_TARGET_DIR: $CARGO_TARGET_DIR"
-          # cargo-dist 0.30.0: build specific target without --artifacts flag
-          # Use direct path to ensure binary is found
-          $HOME/.cargo/bin/cargo-dist build --target "cargo:${{ matrix.target }}"
+          # cargo-dist 0.30.0: executable name is 'dist', not 'cargo-dist'
+          $HOME/.cargo/bin/dist build --target "cargo:${{ matrix.target }}"
 
       - name: Sign Linux packages
         env:
@@ -156,8 +155,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Uploading release artifacts for tag: ${{ github.ref_name }}"
-          # cargo-dist 0.30.0: use direct path to binary
-          $HOME/.cargo/bin/cargo-dist upload --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
+          # cargo-dist 0.30.0: executable name is 'dist'
+          $HOME/.cargo/bin/dist upload --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
 
   create-release:
     name: Create GitHub Release
