@@ -125,3 +125,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cargo dist upload --from-local dist --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
+
+      - name: Notify fukura-site of new release
+        env:
+          SITE_DISPATCH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "${SITE_DISPATCH_TOKEN:-}" ]; then
+            echo "SITE_DISPATCH_TOKEN not set, skipping fukura-site notification"
+            exit 0
+          fi
+          echo "Notifying fukura-site of new release: ${{ github.ref_name }}"
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${SITE_DISPATCH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/repos/boostbit-inc/fukura-site/dispatches \
+            -d '{"event_type":"release","client_payload":{"source":"boostbit-inc/fukura","version":"${{ github.ref_name }}","tag":"${{ github.ref_name }}"}}'
