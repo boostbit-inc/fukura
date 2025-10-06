@@ -36,7 +36,10 @@ jobs:
           echo "Rust installed successfully"
 
       - name: Install cargo-dist
-        run: cargo install cargo-dist --locked
+        run: |
+          cargo install cargo-dist --locked
+          echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
+          echo "cargo-dist installed successfully"
 
       - name: Build & Test
         run: |
@@ -46,6 +49,8 @@ jobs:
         run: |
           # Set unique environment for each matrix job
           export CARGO_TARGET_DIR="target-${{ matrix.target }}"
+          # Ensure cargo-dist is available
+          export PATH="${HOME}/.cargo/bin:$PATH"
           cargo dist build --target ${{ matrix.target }} --artifacts all --output-dir dist-${{ matrix.target }}
 
       - name: Sign Linux packages
@@ -128,6 +133,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Ensure cargo-dist is available
+          export PATH="${HOME}/.cargo/bin:$PATH"
           cargo dist upload --from-local dist --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
 
   create-release:
