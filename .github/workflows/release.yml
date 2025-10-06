@@ -46,6 +46,7 @@ jobs:
         run: |
           source "$HOME/.cargo/env"
           cargo install cargo-dist --locked
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           echo "cargo-dist latest version installed successfully"
 
       - name: Build & Test
@@ -56,13 +57,12 @@ jobs:
         run: |
           # Set unique environment for each matrix job
           export CARGO_TARGET_DIR="target-${{ matrix.target }}"
-          # Ensure cargo environment is loaded
-          source "$HOME/.cargo/env"
           echo "Building release artifacts for target: ${{ matrix.target }}"
           echo "Matrix target value: '${{ matrix.target }}'"
           echo "CARGO_TARGET_DIR: $CARGO_TARGET_DIR"
           # cargo-dist 0.30.0: build specific target without --artifacts flag
-          cargo dist build --target "cargo:${{ matrix.target }}"
+          # Use direct path to ensure binary is found
+          $HOME/.cargo/bin/cargo-dist build --target "cargo:${{ matrix.target }}"
 
       - name: Sign Linux packages
         env:
@@ -146,11 +146,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Ensure cargo environment is loaded
-          source "$HOME/.cargo/env"
           echo "Uploading release artifacts for tag: ${{ github.ref_name }}"
-          # cargo-dist 0.30.0: use cargo dist upload
-          cargo dist upload --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
+          # cargo-dist 0.30.0: use direct path to binary
+          $HOME/.cargo/bin/cargo-dist upload --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
 
   create-release:
     name: Create GitHub Release
