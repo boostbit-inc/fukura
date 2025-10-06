@@ -26,7 +26,12 @@ fn test_dockerfile_references_valid_files() {
     let dockerfile_content = fs::read_to_string("Dockerfile").expect("Failed to read Dockerfile");
 
     let required_dirs = ["src", "benches", "tests", "installers"];
-    let required_files = ["Cargo.toml", "Cargo.lock", "dist-workspace.toml", "deny.toml"];
+    let required_files = [
+        "Cargo.toml",
+        "Cargo.lock",
+        "dist-workspace.toml",
+        "deny.toml",
+    ];
 
     // Check that all required directories are copied
     for dir in &required_dirs {

@@ -1,7 +1,9 @@
 # Configuration for cargo-dist release automation
-[dist]
+[workspace]
+members = ["."]
+
+[workspace.metadata.dist]
 cargo-dist-version = "0.19.0"
-workspace = "."
 github-owner = "boostbit-inc"
 github-repo = "fukura"
 artifacts = ["zip", "tar.gz", "msi", "pkg", "deb", "rpm", "checksum"]
@@ -15,7 +17,7 @@ targets = [
 ]
 installers = ["msi", "pkg", "deb", "rpm"]
 
-[dist.windows]
+[workspace.metadata.dist.windows]
 sign-command = "powershell"
 sign-args = [
   "-ExecutionPolicy", "Bypass",
@@ -26,13 +28,13 @@ sign-args = [
 ]
 wix-template = "installers/windows/Product.wxs"
 
-[dist.macos]
+[workspace.metadata.dist.macos]
 codesign-identity-env = "MACOS_CODESIGN_IDENTITY"
 notarize = { apple-id-env = "MACOS_NOTARIZE_APPLE_ID", password-env = "MACOS_NOTARIZE_APP_PASSWORD", team-id-env = "MACOS_NOTARIZE_TEAM_ID" }
 pkg-install-path = "/usr/local/bin"
 pkg-postinstall-script = "installers/macos/postinstall.sh"
 
-[dist.linux]
+[workspace.metadata.dist.linux]
 deb-signing = { key-env = "LINUX_GPG_KEY", password-env = "LINUX_GPG_PASSPHRASE" }
 rpm-signing = { key-env = "LINUX_GPG_KEY", password-env = "LINUX_GPG_PASSPHRASE" }
 postinstall-script = "installers/linux/postinst.sh"
