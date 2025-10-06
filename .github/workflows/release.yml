@@ -49,9 +49,21 @@ jobs:
         run: |
           # Set unique environment for each matrix job
           export CARGO_TARGET_DIR="target-${{ matrix.target }}"
-          # Ensure cargo-dist is available
+          # Ensure cargo-dist is available and verify installation
           export PATH="${HOME}/.cargo/bin:$PATH"
-          cargo dist build --target ${{ matrix.target }} --artifacts all --output-dir dist-${{ matrix.target }}
+          echo "Current PATH: $PATH"
+          echo "Checking cargo-dist installation..."
+          cargo --list | grep dist || echo "cargo-dist not found in cargo --list"
+          which cargo-dist || echo "cargo-dist not found in PATH"
+          ls -la "${HOME}/.cargo/bin/" || echo "cargo bin directory not found"
+          # Try to run cargo-dist with full path if needed
+          if [ -f "${HOME}/.cargo/bin/cargo-dist" ]; then
+            echo "Found cargo-dist at ${HOME}/.cargo/bin/cargo-dist"
+            "${HOME}/.cargo/bin/cargo-dist" build --target ${{ matrix.target }} --artifacts all --output-dir dist-${{ matrix.target }}
+          else
+            echo "cargo-dist not found, trying standard cargo dist command"
+            cargo dist build --target ${{ matrix.target }} --artifacts all --output-dir dist-${{ matrix.target }}
+          fi
 
       - name: Sign Linux packages
         env:
@@ -135,7 +147,16 @@ jobs:
         run: |
           # Ensure cargo-dist is available
           export PATH="${HOME}/.cargo/bin:$PATH"
-          cargo dist upload --from-local dist --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
+          echo "Current PATH: $PATH"
+          echo "Checking cargo-dist for upload..."
+          # Try to run cargo-dist with full path if needed
+          if [ -f "${HOME}/.cargo/bin/cargo-dist" ]; then
+            echo "Found cargo-dist at ${HOME}/.cargo/bin/cargo-dist"
+            "${HOME}/.cargo/bin/cargo-dist" upload --from-local dist --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
+          else
+            echo "cargo-dist not found, trying standard cargo dist command"
+            cargo dist upload --from-local dist --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
+          fi
 
   create-release:
     name: Create GitHub Release
