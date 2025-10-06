@@ -25,7 +25,7 @@ RUN rm -rf src benches
 COPY src ./src
 COPY benches ./benches
 COPY tests ./tests
-COPY dist.toml ./dist.toml
+COPY dist-workspace.toml ./dist-workspace.toml
 COPY deny.toml ./deny.toml
 COPY scripts ./scripts
 COPY installers ./installers
