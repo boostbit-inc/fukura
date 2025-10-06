@@ -35,6 +35,13 @@ jobs:
           echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
           echo "Rust installed successfully"
 
+      - name: Install cross-compilation toolchains
+        run: |
+          # Install cross-compilation toolchains for aarch64
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          echo "Cross-compilation toolchains installed successfully"
+
       - name: Install cargo-dist
         run: |
           cargo install cargo-dist --version 0.16.0 --locked
@@ -52,7 +59,8 @@ jobs:
           # Ensure cargo-dist is available (version 0.16.0 with cargo dist subcommand)
           export PATH="${HOME}/.cargo/bin:$PATH"
           echo "Building release artifacts for target: ${{ matrix.target }}"
-          cargo dist build --target ${{ matrix.target }} --artifacts all
+          # For cargo dist 0.16.0, --target must be placed before the subcommand
+          cargo dist --target ${{ matrix.target }} build --artifacts all
 
       - name: Sign Linux packages
         env:
@@ -65,24 +73,26 @@ jobs:
           else
             echo "$LINUX_GPG_KEY" | base64 --decode | gpg --batch --import
             KEY_ID=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')
-            for pkg in dist-${{ matrix.target }}/*.deb dist-${{ matrix.target }}/*.rpm 2>/dev/null; do
+            # cargo dist 0.16.0 outputs to target-*/dist/ directory
+            for pkg in target-${{ matrix.target }}/dist/*.deb target-${{ matrix.target }}/dist/*.rpm 2>/dev/null; do
               [ -e "$pkg" ] || continue
               echo "$LINUX_GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback --detach-sign --armor "$pkg"
             done
             if [ -n "$KEY_ID" ]; then
-              gpg --batch --armor --export "$KEY_ID" > dist-${{ matrix.target }}/fukura-archive-keyring.gpg
+              gpg --batch --armor --export "$KEY_ID" > target-${{ matrix.target }}/dist/fukura-archive-keyring.gpg
             fi
           fi
 
       - name: Build APT repository skeleton
         run: |
-          scripts/linux/build-apt-repo.sh dist-${{ matrix.target }} stable amd64
+          # cargo dist 0.16.0 outputs to target-*/dist/ directory
+          scripts/linux/build-apt-repo.sh target-${{ matrix.target }}/dist stable amd64
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-dist-${{ matrix.target }}-${{ github.run_id }}
-          path: dist-${{ matrix.target }}
+          path: target-${{ matrix.target }}/dist
           if-no-files-found: error
 
   release:
@@ -137,6 +147,7 @@ jobs:
           # Ensure cargo-dist is available (version 0.16.0 with cargo dist subcommand)
           export PATH="${HOME}/.cargo/bin:$PATH"
           echo "Uploading release artifacts for tag: ${{ github.ref_name }}"
+          # cargo dist 0.16.0 uploads from the default dist directory
           cargo dist upload --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
 
   create-release:
