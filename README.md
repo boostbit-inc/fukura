@@ -81,7 +81,7 @@ fukura hook install                      # Install shell hooks for error capture
 ├── tests/                    # integration tests
 ├── installers/               # WiX template, macOS postinstall, Linux postinst
 ├── scripts/linux/build-apt-repo.sh  # helper to stage an APT repo
-├── dist.toml                 # cargo-dist configuration
+├── dist-workspace.toml       # cargo-dist workspace configuration
 └── .github/workflows/        # release + site dispatch workflows
 ```
 

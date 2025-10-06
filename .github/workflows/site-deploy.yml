@@ -12,7 +12,7 @@ on:
       - main
     paths:
       - README.md
-      - dist.toml
+      - dist-workspace.toml
       - '.github/workflows/release.yml'
       - '.github/workflows/site-deploy.yml'
   repository_dispatch:
