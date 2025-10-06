@@ -52,7 +52,7 @@ jobs:
           # Ensure cargo-dist is available (version 0.16.0 with cargo dist subcommand)
           export PATH="${HOME}/.cargo/bin:$PATH"
           echo "Building release artifacts for target: ${{ matrix.target }}"
-          cargo dist build --target ${{ matrix.target }} --artifacts all --output-dir dist-${{ matrix.target }}
+          cargo dist build --target ${{ matrix.target }} --artifacts all
 
       - name: Sign Linux packages
         env:
@@ -137,7 +137,7 @@ jobs:
           # Ensure cargo-dist is available (version 0.16.0 with cargo dist subcommand)
           export PATH="${HOME}/.cargo/bin:$PATH"
           echo "Uploading release artifacts for tag: ${{ github.ref_name }}"
-          cargo dist upload --from-local dist --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
+          cargo dist upload --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
 
   create-release:
     name: Create GitHub Release
