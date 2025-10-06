@@ -59,8 +59,8 @@ jobs:
           # Ensure cargo-dist is available (latest version with dist CLI)
           export PATH="${HOME}/.cargo/bin:$PATH"
           echo "Building release artifacts for target: ${{ matrix.target }}"
-          # Use latest cargo-dist dist CLI with --output-dir
-          dist build --target ${{ matrix.target }} --artifacts all --output-dir dist-${{ matrix.target }}
+          # Latest cargo-dist outputs to dist/<version>/ directory (--output-dir deprecated)
+          dist build --target ${{ matrix.target }} --artifacts all
 
       - name: Sign Linux packages
         env:
@@ -73,26 +73,26 @@ jobs:
           else
             echo "$LINUX_GPG_KEY" | base64 --decode | gpg --batch --import
             KEY_ID=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')
-            # Latest cargo-dist outputs to specified --output-dir directory
-            for pkg in dist-${{ matrix.target }}/*.deb dist-${{ matrix.target }}/*.rpm 2>/dev/null; do
+            # Latest cargo-dist outputs to dist/<version>/ directory
+            for pkg in dist/*.deb dist/*.rpm 2>/dev/null; do
               [ -e "$pkg" ] || continue
               echo "$LINUX_GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback --detach-sign --armor "$pkg"
             done
             if [ -n "$KEY_ID" ]; then
-              gpg --batch --armor --export "$KEY_ID" > dist-${{ matrix.target }}/fukura-archive-keyring.gpg
+              gpg --batch --armor --export "$KEY_ID" > dist/fukura-archive-keyring.gpg
             fi
           fi
 
       - name: Build APT repository skeleton
         run: |
-          # Latest cargo-dist outputs to specified --output-dir directory
-          scripts/linux/build-apt-repo.sh dist-${{ matrix.target }} stable amd64
+          # Latest cargo-dist outputs to dist/<version>/ directory
+          scripts/linux/build-apt-repo.sh dist stable amd64
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-dist-${{ matrix.target }}-${{ github.run_id }}
-          path: dist-${{ matrix.target }}
+          path: dist
           if-no-files-found: error
 
   release:
@@ -147,8 +147,8 @@ jobs:
           # Ensure cargo-dist is available (latest version with dist CLI)
           export PATH="${HOME}/.cargo/bin:$PATH"
           echo "Uploading release artifacts for tag: ${{ github.ref_name }}"
-          # Latest cargo-dist dist CLI upload
-          dist upload --from-local dist --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
+          # Latest cargo-dist dist CLI upload (from default dist/ directory)
+          dist upload --owner boostbit-inc --repo fukura --tag ${{ github.ref_name }}
 
   create-release:
     name: Create GitHub Release
