@@ -29,7 +29,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
+          echo "Rust installed successfully"
 
       - name: Install cargo-dist
         run: cargo install cargo-dist --locked
