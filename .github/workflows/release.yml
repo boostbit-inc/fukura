@@ -32,7 +32,10 @@ jobs:
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          source "$HOME/.cargo/env"
           echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
+          rustc --version
+          cargo --version
           echo "Rust installed successfully"
 
       - name: Install cross-compilation toolchains
@@ -46,8 +49,14 @@ jobs:
         run: |
           source "$HOME/.cargo/env"
           cargo install cargo-dist --locked
+          # Verify installation
+          if [ ! -f "$HOME/.cargo/bin/cargo-dist" ]; then
+            echo "Error: cargo-dist binary not found after installation"
+            exit 1
+          fi
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          echo "cargo-dist latest version installed successfully"
+          $HOME/.cargo/bin/cargo-dist --version
+          echo "cargo-dist installed successfully"
 
       - name: Build & Test
         run: |
