@@ -8,12 +8,12 @@ github-owner = "boostbit-inc"
 github-repo = "fukura"
 artifacts = ["zip", "tar.gz", "msi", "pkg", "deb", "rpm", "checksum"]
 targets = [
-  "cargo:x86_64-pc-windows-msvc",
-  "cargo:aarch64-pc-windows-msvc",
-  "cargo:x86_64-apple-darwin",
-  "cargo:aarch64-apple-darwin",
-  "cargo:x86_64-unknown-linux-gnu",
-  "cargo:aarch64-unknown-linux-gnu"
+  "x86_64-pc-windows-msvc",
+  "aarch64-pc-windows-msvc",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu"
 ]
 installers = ["msi", "pkg", "deb", "rpm"]
 
