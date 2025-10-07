@@ -1,40 +1,13 @@
-# Configuration for cargo-dist release automation
 [workspace]
 members = ["cargo:."]
 
-[workspace.metadata.dist]
+# Config for 'dist'
+[dist]
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
 cargo-dist-version = "0.30.0"
-github-owner = "boostbit-inc"
-github-repo = "fukura"
-artifacts = ["zip", "tar.gz", "msi", "pkg", "deb", "rpm", "checksum"]
-targets = [
-  "x86_64-pc-windows-msvc",
-  "aarch64-pc-windows-msvc",
-  "x86_64-apple-darwin",
-  "aarch64-apple-darwin",
-  "x86_64-unknown-linux-gnu",
-  "aarch64-unknown-linux-gnu"
-]
-installers = ["msi", "pkg", "deb", "rpm"]
-
-[workspace.metadata.dist.windows]
-sign-command = "powershell"
-sign-args = [
-  "-ExecutionPolicy", "Bypass",
-  "-File", "scripts/windows/sign.ps1",
-  "-InputPath", "{artifact}",
-  "-CertificatePath", "${{ secrets.WINDOWS_SIGNING_CERT_PATH }}",
-  "-CertificatePassword", "${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}"
-]
-wix-template = "installers/windows/Product.wxs"
-
-[workspace.metadata.dist.macos]
-codesign-identity-env = "MACOS_CODESIGN_IDENTITY"
-notarize = { apple-id-env = "MACOS_NOTARIZE_APPLE_ID", password-env = "MACOS_NOTARIZE_APP_PASSWORD", team-id-env = "MACOS_NOTARIZE_TEAM_ID" }
-pkg-install-path = "/usr/local/bin"
-pkg-postinstall-script = "installers/macos/postinstall.sh"
-
-[workspace.metadata.dist.linux]
-deb-signing = { key-env = "LINUX_GPG_KEY", password-env = "LINUX_GPG_PASSPHRASE" }
-rpm-signing = { key-env = "LINUX_GPG_KEY", password-env = "LINUX_GPG_PASSPHRASE" }
-postinstall-script = "installers/linux/postinst.sh"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = []
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
