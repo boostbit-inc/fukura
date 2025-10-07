@@ -1,6 +1,6 @@
 [package]
 name = "fukura"
-version = "0.2.0"
+version = "0.2.26"
 edition = "2021"
 description = "An intelligent knowledge management system with automatic error capture and solution tracking"
 license = "Apache-2.0"
@@ -63,3 +63,8 @@ strip = true
 
 [profile.bench]
 debug = true
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
