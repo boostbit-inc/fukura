@@ -99,6 +99,24 @@ fukura monitor --auto-start              # Auto-start daemon for current directo
 fukura hook install                      # Install shell hooks for error capture
 ```
 
+### Shortcuts and Conveniences
+
+Fukura provides several shortcuts for improved usability:
+
+```bash
+# Reference notes by shortcuts
+fuku view @latest                        # View the most recent note
+fuku view @1                             # View first note from search results
+fuku open @2                             # Open second note from search results
+
+# Short ID support
+fuku view a664dd                         # Use first 6-8 chars instead of full hash
+fuku sync f2f85e                         # Works with all commands accepting IDs
+
+# Global configuration (applies to all projects)
+fuku config remote --set https://hub.example.com --global
+```
+
 ## Repository layout
 
 ```
