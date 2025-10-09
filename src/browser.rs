@@ -222,7 +222,7 @@ impl BrowserOpener {
         if Self::open_url(&url).is_err() {
             // If opening fails, print the URL for manual opening
             println!("🌐 Please open this URL in your browser: {}", url);
-            println!("📁 Or open this file directly: {}", file_path.display());
+            println!(" Or open this file directly: {}", file_path.display());
         }
 
         Ok(())

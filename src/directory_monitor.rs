@@ -49,7 +49,7 @@ impl DirectoryMonitor {
                 if let Err(e) = daemon_service.start_background() {
                     eprintln!("Failed to start daemon for {}: {}", dir.display(), e);
                 } else {
-                    println!("🚀 Auto-started daemon for {}", dir.display());
+                    println!(" Auto-started daemon for {}", dir.display());
                     self.monitored_paths.insert(dir);
                 }
             }
@@ -181,7 +181,7 @@ impl VSCodeIntegration {
                 if !daemon_service.is_running().await {
                     daemon_service.start_background()?;
                     println!(
-                        "🚀 Auto-started daemon for VS Code workspace: {}",
+                        " Auto-started daemon for VS Code workspace: {}",
                         workspace_path.display()
                     );
                 }
@@ -227,7 +227,7 @@ impl TerminalIntegration {
             if !daemon_service.is_running().await {
                 daemon_service.start_background()?;
                 println!(
-                    "🚀 Auto-started daemon for terminal session: {}",
+                    " Auto-started daemon for terminal session: {}",
                     cwd.display()
                 );
             }
