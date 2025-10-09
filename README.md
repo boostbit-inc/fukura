@@ -96,8 +96,24 @@ fukura sync --disable-auto
 ```bash
 fukura daemon --status                   # Check daemon status (detailed info)
 fukura monitor --auto-start              # Auto-start daemon for current directory
-fukura hook install                      # Install shell hooks for error capture
+fukura hook --install                    # Install shell hooks for error capture
 ```
+
+**What are hooks?**
+Shell hooks integrate Fukura into your shell (bash/zsh/fish/powershell) to automatically capture:
+- Command executions and exit codes
+- Error messages from stderr  
+- Working directory and git context
+
+This enables passive error capture without manual intervention.
+
+**What is gc (garbage collection)?**
+The `gc` command packs loose note objects into efficient pack files:
+```bash
+fukura gc              # Pack objects for better performance
+fukura gc --prune      # Pack and remove loose objects
+```
+This optimizes storage and improves search performance, similar to `git gc`.
 
 ### Shortcuts and Conveniences
 
@@ -115,7 +131,16 @@ fuku sync f2f85e                         # Works with all commands accepting IDs
 
 # Global configuration (applies to all projects)
 fuku config remote --set https://hub.example.com --global
+
+# View all notes across all projects
+fuku search "" --all-repos                # Search across all local repositories
 ```
+
+**Important: Local vs Global**
+- Each project has its own `.fukura/` directory with project-specific notes
+- Global config (`~/.fukura/config.toml`) provides default values (remote URL, auto-sync)
+- Notes are NOT stored globally - they remain in each project
+- `.fukura/` should stay in `.gitignore` (already configured)
 
 ## Repository layout
 

@@ -354,9 +354,9 @@ impl AutoNoteDaemon {
         body.push_str("## All Commands\n\n");
         for (i, cmd) in session.commands.iter().enumerate() {
             let status = if cmd.exit_code == Some(0) {
-                "✅"
+                ""
             } else {
-                "❌"
+                ""
             };
             body.push_str(&format!("{}. {} `{}`\n", i + 1, status, cmd.command));
         }

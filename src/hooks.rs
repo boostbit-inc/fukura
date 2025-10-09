@@ -87,9 +87,9 @@ impl HookManager {
 
         if !self.is_hook_installed(&bashrc_path, "bash")? {
             self.append_to_file(&bashrc_path, &hook_content)?;
-            println!("✅ Installed Fukura hooks for bash");
+            println!(" Installed Fukura hooks for bash");
         } else {
-            println!("ℹ️  Fukura hooks already installed for bash");
+            println!("  Fukura hooks already installed for bash");
         }
 
         Ok(())
@@ -101,9 +101,9 @@ impl HookManager {
 
         if !self.is_hook_installed(&zshrc_path, "zsh")? {
             self.append_to_file(&zshrc_path, &hook_content)?;
-            println!("✅ Installed Fukura hooks for zsh");
+            println!(" Installed Fukura hooks for zsh");
         } else {
-            println!("ℹ️  Fukura hooks already installed for zsh");
+            println!("  Fukura hooks already installed for zsh");
         }
 
         Ok(())
@@ -116,9 +116,9 @@ impl HookManager {
         if !hook_file.exists() {
             let hook_content = self.generate_fish_hook();
             fs::write(&hook_file, hook_content)?;
-            println!("✅ Installed Fukura hooks for fish");
+            println!(" Installed Fukura hooks for fish");
         } else {
-            println!("ℹ️  Fukura hooks already installed for fish");
+            println!("  Fukura hooks already installed for fish");
         }
 
         Ok(())
@@ -130,9 +130,9 @@ impl HookManager {
 
         if !self.is_hook_installed(&profile_path, "fukura")? {
             self.append_to_file(&profile_path, &hook_content)?;
-            println!("✅ Installed Fukura hooks for PowerShell");
+            println!(" Installed Fukura hooks for PowerShell");
         } else {
-            println!("ℹ️  Fukura hooks already installed for PowerShell");
+            println!("  Fukura hooks already installed for PowerShell");
         }
 
         Ok(())
@@ -141,14 +141,14 @@ impl HookManager {
     fn uninstall_bash_hooks(&self) -> Result<()> {
         let bashrc_path = self.get_bashrc_path()?;
         self.remove_hook_from_file(&bashrc_path, "fukura")?;
-        println!("✅ Uninstalled Fukura hooks for bash");
+        println!(" Uninstalled Fukura hooks for bash");
         Ok(())
     }
 
     fn uninstall_zsh_hooks(&self) -> Result<()> {
         let zshrc_path = self.get_zshrc_path()?;
         self.remove_hook_from_file(&zshrc_path, "fukura")?;
-        println!("✅ Uninstalled Fukura hooks for zsh");
+        println!(" Uninstalled Fukura hooks for zsh");
         Ok(())
     }
 
@@ -158,7 +158,7 @@ impl HookManager {
 
         if hook_file.exists() {
             fs::remove_file(&hook_file)?;
-            println!("✅ Uninstalled Fukura hooks for fish");
+            println!(" Uninstalled Fukura hooks for fish");
         }
 
         Ok(())
@@ -167,7 +167,7 @@ impl HookManager {
     fn uninstall_powershell_hooks(&self) -> Result<()> {
         let profile_path = self.get_powershell_profile_path()?;
         self.remove_hook_from_file(&profile_path, "fukura")?;
-        println!("✅ Uninstalled Fukura hooks for PowerShell");
+        println!(" Uninstalled Fukura hooks for PowerShell");
         Ok(())
     }
 

@@ -618,7 +618,7 @@ impl FukuraDaemon {
                     cmd.exit_code.unwrap_or(-1)
                 ));
             } else {
-                body.push_str("✅ Success\n\n");
+                body.push_str(" Success\n\n");
             }
         }
 
