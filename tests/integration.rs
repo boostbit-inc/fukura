@@ -35,7 +35,7 @@ fn test_cli_init() {
         .join("fukura");
 
     let output = Command::new(&binary_path)
-        .args(["init"])
+        .args(["init", "--no-daemon", "--no-hooks"])
         .current_dir(repo_path)
         .output()
         .expect("Failed to execute command");
