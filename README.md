@@ -239,7 +239,7 @@ Fukura takes security seriously:
 - **Customizable Patterns**: Add organization-specific redaction rules
 - **No Telemetry**: Zero data collection or tracking
 
-See [SECURITY.md](SECURITY.md) for detailed security information.
+See [docs/security.md](docs/security.md) for detailed security information.
 
 ## Performance
 
