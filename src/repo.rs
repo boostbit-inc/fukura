@@ -279,36 +279,41 @@ impl FukuraRepo {
         // Use search with empty query and large limit to get all notes
         let hits = self.search("", 10000, SearchSort::Updated)?;
         let mut records = Vec::new();
-        
+
         for hit in hits {
             match self.load_note(&hit.object_id) {
                 Ok(record) => records.push(record),
                 Err(_) => continue, // Skip if note can't be loaded
             }
         }
-        
+
         Ok(records)
     }
 
     pub fn resolve_object_id(&self, input: &str) -> Result<String> {
         let candidate = input.trim();
-        
+
         // Handle @latest shorthand
         if candidate == "@latest" {
-            return self.latest()?.context("No notes found. Use @latest after creating notes.");
+            return self
+                .latest()?
+                .context("No notes found. Use @latest after creating notes.");
         }
-        
+
         // Handle @N shorthand (search result index)
-        if candidate.starts_with('@') {
-            if let Ok(index) = candidate[1..].parse::<usize>() {
+        if let Some(stripped) = candidate.strip_prefix('@') {
+            if let Ok(index) = stripped.parse::<usize>() {
                 let hits = self.search("", 20, SearchSort::Updated)?;
                 if index > 0 && index <= hits.len() {
                     return Ok(hits[index - 1].object_id.clone());
                 }
-                bail!("@{} is out of range. Use search to see available notes.", index);
+                bail!(
+                    "@{} is out of range. Use search to see available notes.",
+                    index
+                );
             }
         }
-        
+
         if candidate.len() >= 64 {
             let object_id = candidate[..64].to_lowercase();
             if self.object_path(&object_id).exists() {

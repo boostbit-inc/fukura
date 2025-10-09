@@ -134,14 +134,26 @@ fn test_sensitive_data_redaction() {
     // This test ensures the redaction mechanism is working properly
 
     // Body should be redacted
-    assert!(!retrieved.note.body.contains("AKIAIOSFODNN7EXAMPLE"), "AWS key should be redacted");
-    assert!(!retrieved.note.body.contains("secret999"), "Password should be redacted");
-    assert!(retrieved.note.body.contains("__AWS_ACCESS_KEY_REDACTED__") || 
-            retrieved.note.body.contains("__PASSWORD_REDACTED__"), "Redaction markers should be present");
+    assert!(
+        !retrieved.note.body.contains("AKIAIOSFODNN7EXAMPLE"),
+        "AWS key should be redacted"
+    );
+    assert!(
+        !retrieved.note.body.contains("secret999"),
+        "Password should be redacted"
+    );
+    assert!(
+        retrieved.note.body.contains("__AWS_ACCESS_KEY_REDACTED__")
+            || retrieved.note.body.contains("__PASSWORD_REDACTED__"),
+        "Redaction markers should be present"
+    );
 
     // Meta fields should also be redacted
     let aws_value = retrieved.note.meta.get("aws_key").unwrap();
-    assert!(!aws_value.contains("AKIAIOSFODNN7EXAMPLE"), "AWS key in meta should be redacted");
+    assert!(
+        !aws_value.contains("AKIAIOSFODNN7EXAMPLE"),
+        "AWS key in meta should be redacted"
+    );
 }
 
 #[test]

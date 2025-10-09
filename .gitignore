@@ -19,3 +19,5 @@ dist/
 *.fop
 *.fop.idx
 .fukura
+*.orig
+*.bak

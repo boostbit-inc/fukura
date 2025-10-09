@@ -193,11 +193,7 @@ pub struct SearchCommand {
     #[arg(long, short = 'a', help = "Search all repositories")]
     all_repos: bool,
 
-    #[arg(
-        value_name = "QUERY",
-        help = "Search terms",
-        trailing_var_arg = true
-    )]
+    #[arg(value_name = "QUERY", help = "Search terms", trailing_var_arg = true)]
     query: Vec<String>,
 }
 
@@ -429,8 +425,14 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
         true // Default to true in quiet mode
     } else {
         // Ask user interactively
-        println!("{} Fukura can automatically capture errors and solutions in the background.", "".cyan());
-        println!("{} This helps build your knowledge base without manual effort.", "  ".dimmed());
+        println!(
+            "{} Fukura can automatically capture errors and solutions in the background.",
+            "".cyan()
+        );
+        println!(
+            "{} This helps build your knowledge base without manual effort.",
+            "  ".dimmed()
+        );
         dialoguer::Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt("Enable automatic error capture daemon?")
             .default(true)
@@ -439,10 +441,7 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
 
     if start_daemon {
         if !cli.quiet {
-            println!(
-                "{} Starting automatic error capture daemon...",
-                "".green()
-            );
+            println!("{} Starting automatic error capture daemon...", "".green());
         }
 
         // Start daemon in background
@@ -457,7 +456,10 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
             println!("{} Automatic error capture is now active!", "".blue());
         }
     } else if !cli.quiet {
-        println!("{} Daemon disabled. Use 'fuku daemon' to start it later.", "".blue());
+        println!(
+            "{} Daemon disabled. Use 'fuku daemon' to start it later.",
+            "".blue()
+        );
     }
 
     // Install shell hooks automatically
@@ -585,7 +587,11 @@ async fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
                 Err(e) => {
                     if !cli.quiet {
                         println!("{} Auto-sync failed: {}", "".yellow(), e);
-                        println!("{} Use 'fuku sync {}' to retry", "".cyan(), record.object_id);
+                        println!(
+                            "{} Use 'fuku sync {}' to retry",
+                            "".cyan(),
+                            record.object_id
+                        );
                     }
                 }
             }
@@ -631,15 +637,21 @@ fn handle_search(cli: &Cli, cmd: &SearchCommand) -> Result<()> {
     Ok(())
 }
 
-fn search_all_repos(cli: &Cli, query: &str, limit: usize, sort: SearchSort, json: bool) -> Result<()> {
+fn search_all_repos(
+    _cli: &Cli,
+    query: &str,
+    limit: usize,
+    sort: SearchSort,
+    json: bool,
+) -> Result<()> {
     use std::collections::HashMap;
-    
+
     let home = std::env::var("HOME").context("HOME not set")?;
     let home_path = std::path::PathBuf::from(&home);
-    
+
     let mut all_hits: Vec<SearchHit> = Vec::new();
     let mut repo_map: HashMap<String, String> = HashMap::new();
-    
+
     // Search in common directories
     let search_dirs = vec![
         home_path.join("work"),
@@ -648,37 +660,37 @@ fn search_all_repos(cli: &Cli, query: &str, limit: usize, sort: SearchSort, json
         home_path.join("src"),
         home_path,
     ];
-    
+
     for base_dir in search_dirs {
         if !base_dir.exists() {
             continue;
         }
         find_and_search_repos(&base_dir, query, limit, sort, &mut all_hits, &mut repo_map)?;
     }
-    
+
     // Sort by relevance/date
     match sort {
         SearchSort::Relevance => all_hits.sort_by(|a, b| b.likes.cmp(&a.likes)),
         SearchSort::Updated => all_hits.sort_by(|a, b| b.updated_at.cmp(&a.updated_at)),
         SearchSort::Likes => all_hits.sort_by(|a, b| b.likes.cmp(&a.likes)),
     }
-    
+
     all_hits.truncate(limit);
-    
+
     if json {
         let json = serde_json::to_string_pretty(&all_hits)?;
         println!("{}", json);
         return Ok(());
     }
-    
+
     if all_hits.is_empty() {
         println!("No notes found across all repositories.");
         return Ok(());
     }
-    
+
     println!("Search Results (across {} repositories)", repo_map.len());
     render_search_table(&all_hits);
-    
+
     if let Some(first) = all_hits.first() {
         if let Some(repo_path) = repo_map.get(&first.object_id) {
             let short_id = &first.object_id[..8.min(first.object_id.len())];
@@ -690,7 +702,7 @@ fn search_all_repos(cli: &Cli, query: &str, limit: usize, sort: SearchSort, json
             );
         }
     }
-    
+
     Ok(())
 }
 
@@ -702,13 +714,12 @@ fn find_and_search_repos(
     all_hits: &mut Vec<SearchHit>,
     repo_map: &mut std::collections::HashMap<String, String>,
 ) -> Result<()> {
-    
-    
     // Limit recursion depth
     const MAX_DEPTH: usize = 3;
     find_and_search_repos_recursive(dir, query, limit, sort, all_hits, repo_map, 0, MAX_DEPTH)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn find_and_search_repos_recursive(
     dir: &std::path::Path,
     query: &str,
@@ -720,11 +731,11 @@ fn find_and_search_repos_recursive(
     max_depth: usize,
 ) -> Result<()> {
     use std::fs;
-    
+
     if depth > max_depth {
         return Ok(());
     }
-    
+
     // Check if this directory has .fukura
     let fukura_dir = dir.join(".fukura");
     if fukura_dir.exists() && fukura_dir.is_dir() {
@@ -739,7 +750,7 @@ fn find_and_search_repos_recursive(
         }
         return Ok(()); // Don't recurse into subdirectories of a repo
     }
-    
+
     // Recurse into subdirectories
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -749,16 +760,28 @@ fn find_and_search_repos_recursive(
                     // Skip hidden directories and common exclude patterns
                     if let Some(name) = path.file_name() {
                         let name_str = name.to_string_lossy();
-                        if name_str.starts_with('.') || name_str == "node_modules" || name_str == "target" {
+                        if name_str.starts_with('.')
+                            || name_str == "node_modules"
+                            || name_str == "target"
+                        {
                             continue;
                         }
                     }
-                    let _ = find_and_search_repos_recursive(&path, query, limit, sort, all_hits, repo_map, depth + 1, max_depth);
+                    let _ = find_and_search_repos_recursive(
+                        &path,
+                        query,
+                        limit,
+                        sort,
+                        all_hits,
+                        repo_map,
+                        depth + 1,
+                        max_depth,
+                    );
                 }
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -897,7 +920,10 @@ async fn handle_sync(cli: &Cli, cmd: &SyncCommand) -> Result<()> {
         config.save(&repo.config_path())?;
         if !cli.quiet {
             println!("{} Auto-sync enabled", "".green());
-            println!("{} Notes will automatically sync to remote after creation", "".cyan());
+            println!(
+                "{} Notes will automatically sync to remote after creation",
+                "".cyan()
+            );
         }
         return Ok(());
     }
@@ -929,11 +955,11 @@ async fn handle_sync(cli: &Cli, cmd: &SyncCommand) -> Result<()> {
         if !cli.quiet {
             println!("{} Syncing all private notes...", "".blue());
         }
-        
+
         // Get all notes and filter private ones
         let all_notes = repo.list_all_notes()?;
         let mut synced_count = 0;
-        
+
         for note_record in all_notes {
             if note_record.note.privacy == Privacy::Private {
                 match push_note(&repo, &note_record.object_id, &remote).await {
@@ -945,13 +971,18 @@ async fn handle_sync(cli: &Cli, cmd: &SyncCommand) -> Result<()> {
                     }
                     Err(e) => {
                         if !cli.quiet {
-                            println!("{} Failed to sync {}: {}", "  [FAIL]".red(), note_record.note.title, e);
+                            println!(
+                                "{} Failed to sync {}: {}",
+                                "  [FAIL]".red(),
+                                note_record.note.title,
+                                e
+                            );
                         }
                     }
                 }
             }
         }
-        
+
         if !cli.quiet {
             println!("{} Synced {} notes", "".green(), synced_count);
         }
@@ -969,12 +1000,12 @@ fn handle_config(cli: &Cli, cmd: &ConfigCommand) -> Result<()> {
                 !(remote.clear && remote.set.is_some()),
                 "Use either --set or --clear, not both"
             );
-            
+
             if remote.global {
                 // Handle global config
                 let config_path = crate::config::FukuraConfig::global_config_path()?;
                 let mut config = crate::config::FukuraConfig::load(&config_path)?;
-                
+
                 if remote.clear {
                     config.default_remote = None;
                     config.save(&config_path)?;
@@ -985,7 +1016,11 @@ fn handle_config(cli: &Cli, cmd: &ConfigCommand) -> Result<()> {
                     config.default_remote = Some(url.clone());
                     config.save(&config_path)?;
                     if !cli.quiet {
-                        println!("{} Global remote set to {} (applies to all projects)", "".yellow(), url);
+                        println!(
+                            "{} Global remote set to {} (applies to all projects)",
+                            "".yellow(),
+                            url
+                        );
                     }
                 }
             } else {
@@ -1902,23 +1937,33 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
                     "".blue(),
                     daemon_service.get_pid_file_path().display()
                 );
-                
+
                 // Show what daemon monitors
                 println!("\n{} Monitoring:", "".cyan());
                 println!("  • Command executions and exit codes");
                 println!("  • Error messages from stderr");
                 println!("  • Working directory and git context");
                 println!("  • Session timeout: 10 minutes (default)");
-                
+
                 // Show what gets recorded
                 println!("\n{} Recording:", "".cyan());
-                println!("  • All data stored locally in {}", repo.root().join(".fukura").display());
+                println!(
+                    "  • All data stored locally in {}",
+                    repo.root().join(".fukura").display()
+                );
                 println!("  • Private by default (use 'fuku sync' to share)");
                 println!("  • Auto-generated notes after 5 min inactivity");
-                
+
                 // Show configuration
                 println!("\n{} Configuration:", "".cyan());
-                println!("  • Auto-sync: {}", if config.auto_sync.unwrap_or(false) { "enabled".green() } else { "disabled".red() });
+                println!(
+                    "  • Auto-sync: {}",
+                    if config.auto_sync.unwrap_or(false) {
+                        "enabled".green()
+                    } else {
+                        "disabled".red()
+                    }
+                );
                 if let Some(remote) = &config.default_remote {
                     println!("  • Default remote: {}", remote);
                 }
@@ -2003,20 +2048,14 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
             if daemon_service.is_running().await {
                 if !cli.quiet {
                     println!("{} Daemon is already running", "".green());
-                    println!(
-                        "{} Use 'fukura daemon --status' to check status",
-                        "".blue()
-                    );
+                    println!("{} Use 'fukura daemon --status' to check status", "".blue());
                 }
             } else {
                 daemon_service.start_background()?;
                 if !cli.quiet {
                     println!("{} Daemon started in background", "".green());
                     println!("{} Now monitoring for errors automatically", "".blue());
-                    println!(
-                        "{} Use 'fukura daemon --status' to check status",
-                        "".blue()
-                    );
+                    println!("{} Use 'fukura daemon --status' to check status", "".blue());
                 }
             }
         }
