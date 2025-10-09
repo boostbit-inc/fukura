@@ -1,103 +1,88 @@
 # Security Policy
 
-## Supported Versions
+## Automatic Secret Redaction
 
-We provide security updates for the following versions:
+Fukura automatically redacts sensitive information from notes to prevent accidental exposure of secrets.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+### Protected Patterns
 
-## Reporting a Vulnerability
+The following patterns are automatically detected and redacted:
 
-We take security seriously. If you discover a security vulnerability, please follow these steps:
+#### Cloud Credentials
+- **AWS Access Keys**: `AKIA[0-9A-Z]{16}`
+- **AWS Secret Keys**: AWS secret patterns
+- **GitHub Tokens**: `ghp_*` and `gho_*` patterns
 
-### 1. Do NOT open a public issue
+#### API Keys & Tokens
+- **Bearer Tokens**: `bearer [token]` patterns
+- **API Keys**: `api_key=...` patterns
+- **JWT Tokens**: JWT format tokens
 
-Security vulnerabilities should be reported privately to prevent exploitation.
+#### Sensitive Data
+- **Passwords**: Password assignment patterns
+- **Database URLs**: Connection strings for Postgres, MySQL, MongoDB
+- **Private Keys**: RSA and EC private key headers
+- **Email Addresses**: Valid email patterns
+- **IP Addresses**: IPv4 addresses
 
-### 2. Contact us privately
+### Custom Redaction Rules
 
-Send an email to: **security@fukura.dev**
+You can add custom redaction patterns:
 
-Include the following information:
-- Description of the vulnerability
-- Steps to reproduce the issue
-- Potential impact assessment
-- Any suggested fixes (if applicable)
+```bash
+# Add a custom pattern
+fuku config redact --set my_token='MY_TOKEN_[A-Z0-9]{20}'
 
-### 3. What to expect
+# Remove a pattern
+fuku config redact --unset email  # Disable email redaction
+```
 
-- We will acknowledge receipt within 48 hours
-- We will investigate and provide updates within 7 days
-- We will work with you to verify the fix
-- We will coordinate the public disclosure timeline
+## Data Storage
 
-### 4. Responsible Disclosure
+### Local Storage
+- All notes are stored locally in `.fukura/` directory
+- Each project has its own isolated repository
+- No data is transmitted without explicit user action
 
-We follow responsible disclosure practices:
-- We will not disclose the vulnerability until a fix is available
-- We will credit you (if desired) when we announce the fix
-- We will provide a reasonable timeframe for fixes (typically 30-90 days)
+### Remote Sync (Optional)
+- Notes are only synced when you run `fuku sync`
+- All sync operations use HTTPS
+- Redaction is applied before any network transmission
 
-## Security Features
+## Privacy Levels
 
-Fukura implements several security measures:
+### Private (Default)
+- Notes are stored locally only
+- Not shared with anyone
+- Recommended for all sensitive information
 
-### Input Sanitization
-- All user inputs are validated and sanitized
-- Protection against path traversal attacks
-- Prevention of script injection
+### Org (Organization)
+- For enterprise use
+- Shared within organization boundary
+- Requires FukuraHub enterprise deployment
 
-### File System Security
-- Repository files are stored with appropriate permissions
-- No world-writable directories
-- Secure temporary file handling
+### Public
+- Shared publicly
+- Must be explicitly set by user
+- Redaction still applied
 
-### Network Security
-- HTTPS-only for remote operations
-- Certificate validation
-- No hardcoded credentials
+## Reporting Security Issues
 
-### Dependency Security
-- Regular security audits with `cargo audit`
-- License compliance checking
-- Dependency vulnerability scanning
+If you discover a security vulnerability, please email: security@fukura.dev
 
-## Security Best Practices
+**Do NOT** create a public GitHub issue for security vulnerabilities.
 
-When using Fukura:
+## Best Practices
 
-1. **Keep it updated**: Always use the latest version
-2. **Secure storage**: Store repositories in secure locations
-3. **Access control**: Limit access to sensitive repositories
-4. **Backup**: Regularly backup your data
-5. **Network**: Use secure networks for remote operations
+1. **Always review before syncing**: Check notes with `fuku view` before `fuku sync`
+2. **Use custom redaction**: Add patterns for your organization's secret formats
+3. **Keep notes private**: Only make public after thorough review
+4. **Regular audits**: Periodically review stored notes for sensitive data
+5. **Disable IP redaction if needed**: `fuku config redact --unset ipv4`
 
-## Security Tools
+## Encryption (Roadmap)
 
-We use several tools to maintain security:
-
-- `cargo audit` - Dependency vulnerability scanning
-- `cargo deny` - License compliance and security checks
-- Trivy - Container security scanning
-- GitHub Security Advisories
-
-## Bug Bounty
-
-We appreciate security researchers who help improve Fukura's security. While we don't currently offer monetary rewards, we do:
-
-- Provide public recognition for responsible disclosure
-- Include contributors in our security hall of fame
-- Offer early access to new features for security researchers
-
-## Security Updates
-
-Security updates are released as soon as possible after a vulnerability is discovered and fixed. We recommend:
-
-- Enabling automatic updates where possible
-- Monitoring our security advisories
-- Subscribing to our security mailing list
-
-Thank you for helping keep Fukura secure!
-
+Future versions will support:
+- At-rest encryption for local storage
+- End-to-end encryption for remote sync
+- Hardware security key support
