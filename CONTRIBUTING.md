@@ -133,16 +133,46 @@ The release process automatically:
    - Updates `fukura.dev` with latest version
    - Installation instructions reflect new release
 
-### Release Checklist
+### Release Checklist (For Maintainers)
 
-Before creating a release, ensure:
+**IMPORTANT**: Follow these steps in order to avoid CI/CD failures.
 
-- [ ] All tests pass (`cargo test`)
-- [ ] Performance tests show no regression
-- [ ] Security audit passes (`cargo audit`)
-- [ ] Documentation is up to date
-- [ ] Version number follows semantic versioning
-- [ ] CHANGELOG.md is updated (if maintained)
+```bash
+# 1. Code Quality
+cargo fmt --all
+cargo fmt --all -- --check           # CI requirement
+cargo clippy --all-targets --all-features -- -D warnings
+
+# 2. Testing
+cargo test --all
+cargo test --test integration
+cargo test --test security
+cargo test --test performance
+
+# 3. Build & Verify
+cargo build --release
+cargo install --path . --force
+fuku --version                       # Should show new version
+
+# 4. Update Version
+# Edit Cargo.toml: version = "X.Y.Z"
+cargo update -p fukura
+
+# 5. Commit & Tag (in this order!)
+git add -A
+git commit -m "chore: release vX.Y.Z"
+git tag -a vX.Y.Z -m "Release vX.Y.Z: description"
+
+# 6. Push (commits first, then tag)
+git push origin main
+git push origin vX.Y.Z
+```
+
+**Common Mistakes to Avoid:**
+- ❌ Tagging before final commit
+- ❌ Skipping `cargo fmt --check`
+- ❌ Force pushing tags
+- ✅ Always push main branch before tags
 
 ## Questions?
 

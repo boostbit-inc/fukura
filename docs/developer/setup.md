@@ -281,8 +281,49 @@ cross build --target x86_64-pc-windows-gnu --release
 - Ask questions in discussions
 - Join our Discord community (if available)
 
+## Release Process
+
+Before creating a release, follow this checklist to ensure quality:
+
+### Pre-Release Checklist
+
+```bash
+# 1. Format code
+cargo fmt --all
+
+# 2. Check formatting (CI requirement)
+cargo fmt --all -- --check
+
+# 3. Lint with strict warnings
+cargo clippy --all-targets --all-features -- -D warnings
+
+# 4. Run full test suite
+cargo test --all
+
+# 5. Build release version
+cargo build --release
+
+# 6. Verify installation
+cargo install --path . --force
+fuku --version
+```
+
+### Release Steps
+
+1. **Update version** in `Cargo.toml`
+2. **Update Cargo.lock**: `cargo update -p fukura`
+3. **Commit**: `git commit -am "chore: release vX.Y.Z"`
+4. **Tag**: `git tag -a vX.Y.Z -m "Release vX.Y.Z: description"`
+5. **Push**: `git push origin main && git push origin vX.Y.Z`
+
+### Common Mistakes
+
+- ❌ Tagging before final commit
+- ❌ Skipping `cargo fmt --check`
+- ❌ Not running full test suite
+- ✅ Always follow the checklist in order
+
 ## Next Steps
 
 - [Architecture Overview](./architecture.md) - Understand the codebase structure
-- [Testing Guide](./testing.md) - Learn about our testing strategy
-- [Release Process](./release.md) - Understand how releases work
+- [Performance Guide](./performance.md) - Performance optimization tips
