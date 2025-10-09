@@ -87,6 +87,9 @@ pub enum Commands {
     /// Pull notes from a remote hub.
     Pull(PullCommand),
 
+    /// Sync notes with remote hub (smarter push/pull).
+    Sync(SyncCommand),
+
     /// Adjust configuration such as remotes and redaction overrides.
     Config {
         #[command(subcommand)]
@@ -285,6 +288,28 @@ pub struct PullCommand {
     remote: Option<String>,
 }
 
+#[derive(Debug, Args)]
+pub struct SyncCommand {
+    #[arg(value_name = "ID|PREFIX", help = "Note hash or prefix (optional for auto-sync all)")]
+    id: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "URL",
+        help = "Remote hub endpoint (defaults to config)"
+    )]
+    remote: Option<String>,
+
+    #[arg(long, help = "Sync all private notes")]
+    all: bool,
+
+    #[arg(long, help = "Enable auto-sync for future notes")]
+    enable_auto: bool,
+
+    #[arg(long, help = "Disable auto-sync")]
+    disable_auto: bool,
+}
+
 #[derive(Debug, Subcommand)]
 pub enum ConfigCommand {
     /// Set or clear the default remote hub URL.
@@ -376,7 +401,7 @@ pub async fn run() -> Result<()> {
     let cli = Cli::parse();
     match &cli.command {
         Commands::Init(cmd) => handle_init(&cli, cmd)?,
-        Commands::Add(cmd) => handle_add(&cli, cmd)?,
+        Commands::Add(cmd) => handle_add(&cli, cmd).await?,
         Commands::Search(cmd) => handle_search(&cli, cmd)?,
         Commands::View(cmd) => handle_view(&cli, cmd)?,
         Commands::Open(cmd) => handle_open(&cli, cmd)?,
@@ -384,6 +409,7 @@ pub async fn run() -> Result<()> {
         Commands::Gc(cmd) => handle_gc(&cli, cmd)?,
         Commands::Push(cmd) => handle_push(&cli, cmd).await?,
         Commands::Pull(cmd) => handle_pull(&cli, cmd).await?,
+        Commands::Sync(cmd) => handle_sync(&cli, cmd).await?,
         Commands::Config { command } => handle_config(&cli, command)?,
         Commands::Daemon(cmd) => handle_daemon(&cli, cmd).await?,
         Commands::Hook(cmd) => handle_hook(&cli, cmd)?,
@@ -406,10 +432,25 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
             "✨".bold().cyan(),
             repo.root().display()
         );
+        println!();
     }
 
-    // Auto-start daemon after init
-    if !cmd.no_daemon {
+    // Interactive setup for daemon (unless --no-daemon is specified)
+    let start_daemon = if cmd.no_daemon {
+        false
+    } else if cli.quiet {
+        true // Default to true in quiet mode
+    } else {
+        // Ask user interactively
+        println!("{} Fukura can automatically capture errors and solutions in the background.", "💡".cyan());
+        println!("{} This helps build your knowledge base without manual effort.", "  ".dimmed());
+        dialoguer::Confirm::with_theme(&ColorfulTheme::default())
+            .with_prompt("Enable automatic error capture daemon?")
+            .default(true)
+            .interact()?
+    };
+
+    if start_daemon {
         if !cli.quiet {
             println!(
                 "{} Starting automatic error capture daemon...",
@@ -420,13 +461,16 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
         // Start daemon in background
         crate::daemon_service::start_background_daemon(&repo)?;
 
+        // Save daemon preference
+        let mut config = repo.config()?;
+        config.daemon_enabled = Some(true);
+        config.save(&repo.config_path())?;
+
         if !cli.quiet {
             println!("{} Automatic error capture is now active!", "🎯".blue());
-            println!(
-                "{} Use 'fuku daemon --status' to check daemon status",
-                "💡".cyan()
-            );
         }
+    } else if !cli.quiet {
+        println!("{} Daemon disabled. Use 'fuku daemon' to start it later.", "ℹ️".blue());
     }
 
     // Install shell hooks automatically
@@ -446,16 +490,18 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
     }
 
     if !cli.quiet {
-        println!(
-            "{}  Next: fuku add --title 'Proxy install failure'",
-            "›".dimmed()
-        );
+        println!();
+        println!("{} Quick Start Guide:", "📚".cyan());
+        println!("  • Add a note:        fuku add --title 'Error solution'");
+        println!("  • Search notes:      fuku search 'keyword'");
+        println!("  • Check daemon:      fuku daemon --status");
+        println!("  • Sync to remote:    fuku sync --enable-auto");
     }
 
     Ok(())
 }
 
-fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
+async fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
     let repo = open_repo(cli)?;
     let now = chrono::Utc::now();
     let title = match &cmd.title {
@@ -533,6 +579,29 @@ fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
         }
         if let Some(latest) = repo.latest()? {
             println!("{}  Latest note → {}", "↳".dimmed(), latest);
+        }
+    }
+
+    // Auto-sync if enabled
+    let config = repo.config()?;
+    if config.auto_sync.unwrap_or(false) {
+        if let Some(remote) = &config.default_remote {
+            if !cli.quiet {
+                println!("{} Auto-syncing to remote...", "🔄".blue());
+            }
+            match push_note(&repo, &record.object_id, remote).await {
+                Ok(remote_id) => {
+                    if !cli.quiet {
+                        println!("{} Auto-synced → {}", "✅".green(), remote_id);
+                    }
+                }
+                Err(e) => {
+                    if !cli.quiet {
+                        println!("{} Auto-sync failed: {}", "⚠️".yellow(), e);
+                        println!("{} Use 'fuku sync {}' to retry", "💡".cyan(), record.object_id);
+                    }
+                }
+            }
         }
     }
 
@@ -691,6 +760,81 @@ async fn handle_pull(cli: &Cli, cmd: &PullCommand) -> Result<()> {
         println!("{} Pulled {} → {}", "⬇".cyan(), remote_id, local_id);
     }
     Ok(())
+}
+
+async fn handle_sync(cli: &Cli, cmd: &SyncCommand) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let mut config = repo.config()?;
+
+    // Handle auto-sync enable/disable
+    if cmd.enable_auto {
+        config.auto_sync = Some(true);
+        config.save(&repo.config_path())?;
+        if !cli.quiet {
+            println!("{} Auto-sync enabled", "✅".green());
+            println!("{} Notes will automatically sync to remote after creation", "💡".cyan());
+        }
+        return Ok(());
+    }
+
+    if cmd.disable_auto {
+        config.auto_sync = Some(false);
+        config.save(&repo.config_path())?;
+        if !cli.quiet {
+            println!("{} Auto-sync disabled", "🔕".yellow());
+        }
+        return Ok(());
+    }
+
+    // Determine remote
+    let remote = determine_remote(&repo, cmd.remote.as_deref())?;
+
+    // Sync single note
+    if let Some(id) = &cmd.id {
+        let resolved = repo.resolve_object_id(id)?;
+        let remote_id = push_note(&repo, &resolved, &remote).await?;
+        if !cli.quiet {
+            println!("{} Synced {} → {}", "🔄".green(), resolved, remote_id);
+        }
+        return Ok(());
+    }
+
+    // Sync all private notes
+    if cmd.all {
+        if !cli.quiet {
+            println!("{} Syncing all private notes...", "🔄".blue());
+        }
+        
+        // Get all notes and filter private ones
+        let all_notes = repo.list_all_notes()?;
+        let mut synced_count = 0;
+        
+        for note_record in all_notes {
+            if note_record.note.privacy == Privacy::Private {
+                match push_note(&repo, &note_record.object_id, &remote).await {
+                    Ok(_) => {
+                        synced_count += 1;
+                        if !cli.quiet {
+                            println!("{} Synced: {}", "  ✓".green(), note_record.note.title);
+                        }
+                    }
+                    Err(e) => {
+                        if !cli.quiet {
+                            println!("{} Failed to sync {}: {}", "  ✗".red(), note_record.note.title, e);
+                        }
+                    }
+                }
+            }
+        }
+        
+        if !cli.quiet {
+            println!("{} Synced {} notes", "🎉".green(), synced_count);
+        }
+        return Ok(());
+    }
+
+    // No ID and no --all flag
+    bail!("Please specify a note ID or use --all to sync all notes");
 }
 
 fn handle_config(cli: &Cli, cmd: &ConfigCommand) -> Result<()> {
@@ -1600,6 +1744,7 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
     if cmd.status {
         // Show daemon status
         let daemon_service = crate::daemon_service::DaemonService::new(repo.root());
+        let config = repo.config()?;
 
         if !cli.quiet {
             if daemon_service.is_running().await {
@@ -1609,8 +1754,29 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
                     "📁".blue(),
                     daemon_service.get_pid_file_path().display()
                 );
+                
+                // Show what daemon monitors
+                println!("\n{} Monitoring:", "👀".cyan());
+                println!("  • Command executions and exit codes");
+                println!("  • Error messages from stderr");
+                println!("  • Working directory and git context");
+                println!("  • Session timeout: 10 minutes (default)");
+                
+                // Show what gets recorded
+                println!("\n{} Recording:", "📝".cyan());
+                println!("  • All data stored locally in {}", repo.root().join(".fukura").display());
+                println!("  • Private by default (use 'fuku sync' to share)");
+                println!("  • Auto-generated notes after 5 min inactivity");
+                
+                // Show configuration
+                println!("\n{} Configuration:", "⚙️".cyan());
+                println!("  • Auto-sync: {}", if config.auto_sync.unwrap_or(false) { "enabled ✓".green() } else { "disabled ✗".red() });
+                if let Some(remote) = &config.default_remote {
+                    println!("  • Default remote: {}", remote);
+                }
             } else {
                 println!("{} Daemon status: {}", "📊".blue(), "Stopped".red());
+                println!("{} Run 'fuku daemon' to start monitoring", "💡".cyan());
             }
         }
     } else if cmd.stop {

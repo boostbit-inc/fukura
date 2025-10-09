@@ -12,6 +12,10 @@ pub struct FukuraConfig {
     pub redaction_overrides: BTreeMap<String, String>,
     #[serde(default)]
     pub default_remote: Option<String>,
+    #[serde(default)]
+    pub auto_sync: Option<bool>,
+    #[serde(default)]
+    pub daemon_enabled: Option<bool>,
 }
 
 impl FukuraConfig {
