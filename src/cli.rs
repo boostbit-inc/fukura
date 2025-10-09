@@ -60,49 +60,49 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    /// Initialize a new Fukura repository in the current directory.
+    /// Initialize a new repository
     Init(InitCommand),
 
-    /// Capture a new troubleshooting note with metadata.
+    /// Add a new note
     Add(AddCommand),
 
-    /// Search your personal knowledge base.
+    /// Search notes
     Search(SearchCommand),
 
-    /// Render a note in your terminal.
+    /// View a note
     View(ViewCommand),
 
-    /// Generate a polished HTML view in your browser.
+    /// Open note in browser
     Open(OpenCommand),
 
-    /// Run a local HTTP server for richer navigation.
+    /// Start local web server
     Serve(ServeCommand),
 
-    /// Pack loose objects and optionally prune them.
+    /// Optimize storage (garbage collection)
     Gc(GcCommand),
 
-    /// Push notes to a remote hub.
+    /// Push notes to remote
     Push(PushCommand),
 
-    /// Pull notes from a remote hub.
+    /// Pull notes from remote
     Pull(PullCommand),
 
-    /// Sync notes with remote hub (smarter push/pull).
+    /// Sync notes with remote
     Sync(SyncCommand),
 
-    /// Adjust configuration such as remotes and redaction overrides.
+    /// Manage configuration
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
     },
 
-    /// Start the Fukura daemon for automatic error capture.
+    /// Manage background daemon
     Daemon(DaemonCommand),
 
-    /// Install or uninstall shell hooks.
+    /// Manage shell hooks
     Hook(HookCommand),
 
-    /// Monitor directories and auto-start daemons.
+    /// Manage directory monitoring
     Monitor(MonitorCommand),
 }
 
@@ -110,44 +110,40 @@ pub enum Commands {
 pub struct InitCommand {
     #[arg(
         value_name = "PATH",
-        help = "Where to create .fukura/",
+        help = "Directory to initialize (default: current directory)",
         default_value = "."
     )]
     path: PathBuf,
 
-    #[arg(long, help = "Re-initialize even if the directory exists")]
+    #[arg(long, help = "Reinitialize existing repository")]
     force: bool,
 
-    #[arg(long, help = "Skip automatic daemon startup")]
+    #[arg(long, help = "Skip daemon setup")]
     no_daemon: bool,
 
-    #[arg(long, help = "Skip automatic shell hook installation")]
+    #[arg(long, help = "Skip shell hooks")]
     no_hooks: bool,
 }
 
 #[derive(Debug, Args)]
 pub struct AddCommand {
-    #[arg(long, value_name = "TEXT", help = "Note title. Prompted if omitted.")]
+    #[arg(long, value_name = "TEXT", help = "Note title")]
     title: Option<String>,
 
-    #[arg(
-        long,
-        value_name = "TEXT",
-        help = "Note body. Overrides other sources."
-    )]
+    #[arg(long, value_name = "TEXT", help = "Note content")]
     body: Option<String>,
 
-    #[arg(long, value_name = "PATH", help = "Read body from file")]
+    #[arg(long, value_name = "PATH", help = "Read from file")]
     file: Option<PathBuf>,
 
-    #[arg(long, help = "Read body from stdin")]
+    #[arg(long, help = "Read from stdin")]
     stdin: bool,
 
     #[arg(
         long = "tag",
         value_name = "TAG",
         action = ArgAction::Append,
-        help = "Tag the note (repeatable)"
+        help = "Add tag (can be used multiple times)"
     )]
     tags: Vec<String>,
 
@@ -155,7 +151,7 @@ pub struct AddCommand {
         long = "meta",
         value_name = "KEY=VALUE",
         action = ArgAction::Append,
-        help = "Attach metadata (repeatable)"
+        help = "Add metadata (can be used multiple times)"
     )]
     meta: Vec<String>,
 
@@ -163,43 +159,43 @@ pub struct AddCommand {
         long = "link",
         value_name = "URL",
         action = ArgAction::Append,
-        help = "Associate helpful references"
+        help = "Add link (can be used multiple times)"
     )]
     links: Vec<String>,
 
-    #[arg(value_enum, long, help = "Visibility scope", default_value_t = Privacy::Private)]
+    #[arg(value_enum, long, help = "Privacy level (private/org/public)", default_value_t = Privacy::Private)]
     privacy: Privacy,
 
-    #[arg(long, value_name = "NAME", help = "Override author display name")]
+    #[arg(long, value_name = "NAME", help = "Author name")]
     author: Option<String>,
 
-    #[arg(long, value_name = "EMAIL", help = "Override author email")]
+    #[arg(long, value_name = "EMAIL", help = "Author email")]
     email: Option<String>,
 
-    #[arg(long, help = "Skip launching $EDITOR when body is empty")]
+    #[arg(long, help = "Skip editor")]
     no_editor: bool,
 }
 
 #[derive(Debug, Args)]
 pub struct SearchCommand {
-    #[arg(long, default_value_t = 20, help = "Maximum results to display")]
+    #[arg(long, short = 'n', default_value_t = 20, help = "Max results")]
     limit: usize,
 
-    #[arg(value_enum, long, default_value_t = SearchSort::Relevance, help = "Ordering strategy")]
+    #[arg(value_enum, long, short = 's', default_value_t = SearchSort::Relevance, help = "Sort by (relevance/updated/likes)")]
     sort: SearchSort,
 
-    #[arg(long, help = "Emit JSON instead of a table")]
+    #[arg(long, help = "Output as JSON")]
     json: bool,
 
-    #[arg(long, help = "Launch the immersive TUI search experience")]
+    #[arg(long, help = "Interactive TUI mode")]
     tui: bool,
 
-    #[arg(long, help = "Search across all local Fukura repositories")]
+    #[arg(long, short = 'a', help = "Search all repositories")]
     all_repos: bool,
 
     #[arg(
         value_name = "QUERY",
-        help = "Terms to locate",
+        help = "Search terms",
         trailing_var_arg = true
     )]
     query: Vec<String>,
@@ -207,39 +203,36 @@ pub struct SearchCommand {
 
 #[derive(Debug, Args)]
 pub struct ViewCommand {
-    #[arg(value_name = "ID|PREFIX", help = "Note hash or prefix")]
+    #[arg(value_name = "ID", help = "Note ID or @latest/@1")]
     id: String,
 
-    #[arg(long, help = "Emit JSON for tooling integration")]
+    #[arg(long, help = "Output as JSON")]
     json: bool,
 }
 
 #[derive(Debug, Args)]
 pub struct OpenCommand {
-    #[arg(value_name = "ID|PREFIX", help = "Note hash or prefix")]
+    #[arg(value_name = "ID", help = "Note ID or @latest/@1")]
     id: String,
 
     #[arg(
         long,
         value_name = "THEME",
-        help = "Choose between 'light' and 'dark'",
+        help = "Theme (light/dark)",
         default_value = "dark"
     )]
     theme: String,
 
-    #[arg(long, help = "Force opening in browser (skip local server fallback)")]
+    #[arg(long, help = "Open in browser directly")]
     browser_only: bool,
 
-    #[arg(
-        long,
-        help = "Show URL for manual opening instead of automatic browser opening"
-    )]
+    #[arg(long, help = "Show URL only")]
     url_only: bool,
 
     #[arg(
         long,
         value_name = "PORT",
-        help = "Port for local server (when browser opening fails)",
+        help = "Local server port",
         default_value = "8080"
     )]
     server_port: Option<u16>,
@@ -251,62 +244,50 @@ pub struct ServeCommand {
         long,
         value_name = "HOST:PORT",
         default_value = "127.0.0.1:8765",
-        help = "Bind address"
+        help = "Server address"
     )]
     addr: String,
 
-    #[arg(long, default_value_t = 50, help = "Default page size for /notes")]
+    #[arg(long, default_value_t = 50, help = "Page size")]
     page_size: usize,
 }
 
 #[derive(Debug, Args)]
 pub struct GcCommand {
-    #[arg(long, help = "Remove loose objects after packing")]
+    #[arg(long, help = "Remove loose objects")]
     prune: bool,
 }
 
 #[derive(Debug, Args)]
 pub struct PushCommand {
-    #[arg(value_name = "ID|PREFIX", help = "Note hash or prefix")]
+    #[arg(value_name = "ID", help = "Note ID")]
     id: String,
 
-    #[arg(
-        long,
-        value_name = "URL",
-        help = "Remote hub endpoint (defaults to config)"
-    )]
+    #[arg(long, value_name = "URL", help = "Remote URL")]
     remote: Option<String>,
 }
 
 #[derive(Debug, Args)]
 pub struct PullCommand {
-    #[arg(value_name = "ID|PREFIX", help = "Note hash or prefix")]
+    #[arg(value_name = "ID", help = "Note ID")]
     id: String,
 
-    #[arg(
-        long,
-        value_name = "URL",
-        help = "Remote hub endpoint (defaults to config)"
-    )]
+    #[arg(long, value_name = "URL", help = "Remote URL")]
     remote: Option<String>,
 }
 
 #[derive(Debug, Args)]
 pub struct SyncCommand {
-    #[arg(value_name = "ID|PREFIX", help = "Note hash or prefix (optional for auto-sync all)")]
+    #[arg(value_name = "ID", help = "Note ID (optional with --all)")]
     id: Option<String>,
 
-    #[arg(
-        long,
-        value_name = "URL",
-        help = "Remote hub endpoint (defaults to config)"
-    )]
+    #[arg(long, value_name = "URL", help = "Remote URL")]
     remote: Option<String>,
 
-    #[arg(long, help = "Sync all private notes")]
+    #[arg(long, help = "Sync all notes")]
     all: bool,
 
-    #[arg(long, help = "Enable auto-sync for future notes")]
+    #[arg(long, help = "Enable auto-sync")]
     enable_auto: bool,
 
     #[arg(long, help = "Disable auto-sync")]
@@ -315,21 +296,21 @@ pub struct SyncCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum ConfigCommand {
-    /// Set or clear the default remote hub URL.
+    /// Configure remote URL
     Remote(RemoteCommand),
-    /// Maintain additional redaction rules.
+    /// Manage redaction rules
     Redact(RedactCommand),
 }
 
 #[derive(Debug, Args)]
 pub struct RemoteCommand {
-    #[arg(long, value_name = "URL", help = "Set the default remote URL")]
+    #[arg(long, value_name = "URL", help = "Set remote URL")]
     set: Option<String>,
 
-    #[arg(long, help = "Clear the configured default remote")]
+    #[arg(long, help = "Clear remote URL")]
     clear: bool,
 
-    #[arg(long, help = "Set as global default (applies to all projects)")]
+    #[arg(long, help = "Apply globally")]
     global: bool,
 }
 
@@ -339,7 +320,7 @@ pub struct RedactCommand {
         long = "set",
         value_name = "NAME=REGEX",
         action = ArgAction::Append,
-        help = "Add or replace a redaction rule"
+        help = "Add redaction rule"
     )]
     set: Vec<String>,
 
@@ -347,59 +328,59 @@ pub struct RedactCommand {
         long = "unset",
         value_name = "NAME",
         action = ArgAction::Append,
-        help = "Remove a redaction rule"
+        help = "Remove redaction rule"
     )]
     unset: Vec<String>,
 }
 
 #[derive(Debug, Args)]
 pub struct DaemonCommand {
-    #[arg(long, help = "Start the daemon in foreground")]
-    foreground: bool,
+    #[arg(long, help = "Show daemon status and information")]
+    status: bool,
 
     #[arg(long, help = "Stop the daemon")]
     stop: bool,
 
-    #[arg(long, help = "Show daemon status")]
-    status: bool,
+    #[arg(long, help = "Run daemon in foreground (for debugging)")]
+    foreground: bool,
 
-    #[arg(long, help = "Start daemon in background (default)")]
+    #[arg(long, hide = true)]
     background: bool,
 
-    #[arg(long, help = "Record a command execution")]
+    #[arg(long, hide = true)]
     record_command: Option<String>,
 
-    #[arg(long, help = "Record an error message")]
+    #[arg(long, hide = true)]
     record_error: Option<String>,
 
-    #[arg(long, help = "Check for solutions to current session")]
+    #[arg(long, hide = true)]
     check_solutions: bool,
 }
 
 #[derive(Debug, Args)]
 pub struct HookCommand {
-    #[arg(long, help = "Install shell hooks")]
+    #[arg(long, help = "Install hooks")]
     install: bool,
 
-    #[arg(long, help = "Uninstall shell hooks")]
+    #[arg(long, help = "Uninstall hooks")]
     uninstall: bool,
 
-    #[arg(long, help = "Check if hooks are installed")]
+    #[arg(long, help = "Check status")]
     status: bool,
 }
 
 #[derive(Debug, Args)]
 pub struct MonitorCommand {
-    #[arg(long, help = "Start directory monitoring")]
+    #[arg(long, help = "Start monitoring")]
     start: bool,
 
-    #[arg(long, help = "Stop directory monitoring")]
+    #[arg(long, help = "Stop monitoring")]
     stop: bool,
 
-    #[arg(long, help = "Check monitoring status")]
+    #[arg(long, help = "Check status")]
     status: bool,
 
-    #[arg(long, help = "Auto-start daemon for current directory")]
+    #[arg(long, help = "Auto-start daemon")]
     auto_start: bool,
 }
 
