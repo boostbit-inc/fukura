@@ -182,13 +182,6 @@ pub struct AddCommand {
 
 #[derive(Debug, Args)]
 pub struct SearchCommand {
-    #[arg(
-        value_name = "QUERY",
-        help = "Terms to locate",
-        trailing_var_arg = true
-    )]
-    query: Vec<String>,
-
     #[arg(long, default_value_t = 20, help = "Maximum results to display")]
     limit: usize,
 
@@ -203,6 +196,13 @@ pub struct SearchCommand {
 
     #[arg(long, help = "Search across all local Fukura repositories")]
     all_repos: bool,
+
+    #[arg(
+        value_name = "QUERY",
+        help = "Terms to locate",
+        trailing_var_arg = true
+    )]
+    query: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -959,12 +959,12 @@ async fn handle_sync(cli: &Cli, cmd: &SyncCommand) -> Result<()> {
                     Ok(_) => {
                         synced_count += 1;
                         if !cli.quiet {
-                            println!("{} Synced: {}", "  ✓".green(), note_record.note.title);
+                            println!("{} Synced: {}", "  [OK]".green(), note_record.note.title);
                         }
                     }
                     Err(e) => {
                         if !cli.quiet {
-                            println!("{} Failed to sync {}: {}", "  ✗".red(), note_record.note.title, e);
+                            println!("{} Failed to sync {}: {}", "  [FAIL]".red(), note_record.note.title, e);
                         }
                     }
                 }
@@ -1181,7 +1181,7 @@ fn render_search_table(hits: &[SearchHit]) {
     let mut table = Table::new();
     table
         .load_preset(UTF8_HORIZONTAL_ONLY)
-        .set_header(vec!["#", "Title", "👍", "Updated", "By", "Tags"]);
+        .set_header(vec!["#", "Title", "Likes", "Updated", "By", "Tags"]);
     for (idx, hit) in hits.iter().enumerate() {
         table.add_row(vec![
             format!("{:>2}", idx + 1),
@@ -1937,7 +1937,7 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
                 
                 // Show configuration
                 println!("\n{} Configuration:", "".cyan());
-                println!("  • Auto-sync: {}", if config.auto_sync.unwrap_or(false) { "enabled ✓".green() } else { "disabled ✗".red() });
+                println!("  • Auto-sync: {}", if config.auto_sync.unwrap_or(false) { "enabled".green() } else { "disabled".red() });
                 if let Some(remote) = &config.default_remote {
                     println!("  • Default remote: {}", remote);
                 }
