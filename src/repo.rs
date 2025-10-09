@@ -275,6 +275,21 @@ impl FukuraRepo {
         index.collect_tags()
     }
 
+    pub fn list_all_notes(&self) -> Result<Vec<NoteRecord>> {
+        // Use search with empty query and large limit to get all notes
+        let hits = self.search("", 10000, SearchSort::Updated)?;
+        let mut records = Vec::new();
+        
+        for hit in hits {
+            match self.load_note(&hit.object_id) {
+                Ok(record) => records.push(record),
+                Err(_) => continue, // Skip if note can't be loaded
+            }
+        }
+        
+        Ok(records)
+    }
+
     pub fn resolve_object_id(&self, input: &str) -> Result<String> {
         let candidate = input.trim();
         if candidate.len() >= 64 {

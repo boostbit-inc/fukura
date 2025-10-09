@@ -47,7 +47,7 @@ The binary installs as `fukura` and a convenience alias `fuku` is provided.
 ### Automatic Error Capture (Recommended)
 
 ```bash
-fukura init                              # Initialize with automatic daemon startup
+fukura init                              # Interactive setup with daemon & sync options
 # Now just develop normally - Fukura automatically captures errors and solutions!
 
 # After 5 minutes of inactivity, sessions become auto-generated notes
@@ -62,13 +62,39 @@ fukura init --no-daemon                  # Initialize without auto-daemon
 fukura add --title "Proxy deploy"        # capture a note (stdin/editor/file)
 fukura search "proxy timeout" --tui      # multi-pane TUI; Tab switches panes
 fukura open <id>                         # render as HTML in your browser
-fukura push <id> --remote https://hub    # REST push/pull endpoints (future hub)
 ```
+
+### Syncing with Remote (Fukurahub)
+
+Fukura provides an intuitive `sync` command for sharing knowledge:
+
+```bash
+# Enable auto-sync (notes automatically sync after creation)
+fukura sync --enable-auto
+
+# Set default remote
+fukura config remote --set https://fukurahub.example.com
+
+# Sync a specific note
+fukura sync <note-id>
+
+# Sync all private notes to your remote
+fukura sync --all
+
+# Disable auto-sync
+fukura sync --disable-auto
+```
+
+**Privacy-First Workflow:**
+- All notes are **Private** by default
+- Stored locally in `.fukura/`
+- Only synced when you explicitly run `fukura sync`
+- Review and edit on Fukurahub before making public
 
 ### Daemon Management
 
 ```bash
-fukura daemon --status                   # Check daemon status
+fukura daemon --status                   # Check daemon status (detailed info)
 fukura monitor --auto-start              # Auto-start daemon for current directory
 fukura hook install                      # Install shell hooks for error capture
 ```
