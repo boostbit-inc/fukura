@@ -40,7 +40,7 @@ impl FukuraConfig {
     pub fn load_with_global_fallback(path: &Path) -> Result<Self> {
         // Try local config first
         let mut config = Self::load(path)?;
-        
+
         // Load global config for defaults
         if let Ok(global) = Self::load_global() {
             // Use global values if local ones are not set
@@ -51,7 +51,7 @@ impl FukuraConfig {
                 config.auto_sync = global.auto_sync;
             }
         }
-        
+
         Ok(config)
     }
 

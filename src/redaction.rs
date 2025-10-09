@@ -7,30 +7,35 @@ static DEFAULT_PATTERNS: Lazy<Vec<(&str, &str)>> = Lazy::new(|| {
     vec![
         // AWS credentials
         ("aws_access_key", r"AKIA[0-9A-Z]{16}"),
-        ("aws_secret_key", r#"(?i)aws.{0,20}secret.{0,20}['"][0-9a-zA-Z/+=]{40}['"]"#),
-        
+        (
+            "aws_secret_key",
+            r#"(?i)aws.{0,20}secret.{0,20}['"][0-9a-zA-Z/+=]{40}['"]"#,
+        ),
         // API keys and tokens
         ("bearer_token", r"(?i)bearer [a-z0-9\._\-]{20,}"),
-        ("api_key", r#"(?i)api[_-]?key['"]?\s*[:=]\s*['"]?[a-z0-9]{20,}"#),
+        (
+            "api_key",
+            r#"(?i)api[_-]?key['"]?\s*[:=]\s*['"]?[a-z0-9]{20,}"#,
+        ),
         ("github_token", r"ghp_[a-zA-Z0-9]{36}"),
         ("github_oauth", r"gho_[a-zA-Z0-9]{36}"),
-        
         // Generic secrets and passwords
         ("password", r#"(?i)password['"]?\s*[:=]\s*['"]?[^\s'"]{6,}"#),
-        ("generic_secret", r#"(?i)secret[_-]?key['"]?\s*[:=]\s*['"]?[a-z0-9]{20,}"#),
-        
+        (
+            "generic_secret",
+            r#"(?i)secret[_-]?key['"]?\s*[:=]\s*['"]?[a-z0-9]{20,}"#,
+        ),
         // Database connection strings
         ("database_url", r"(?i)(postgres|mysql|mongodb)://[^\s]+"),
-        
         // Private keys
         ("private_key", r"-----BEGIN (RSA |EC )?PRIVATE KEY-----"),
-        
         // JWT tokens
-        ("jwt", r"eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*"),
-        
+        (
+            "jwt",
+            r"eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*",
+        ),
         // IP addresses (optional, can be disabled)
         ("ipv4", r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b"),
-        
         // Email addresses
         ("email", r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
     ]
