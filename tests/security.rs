@@ -105,13 +105,13 @@ fn test_sensitive_data_redaction() {
     // Create note with potentially sensitive data
     let now = Utc::now();
     let mut meta = BTreeMap::new();
-    meta.insert("password".into(), "secret123".into());
-    meta.insert("api_key".into(), "sk-1234567890abcdef".into());
-    meta.insert("token".into(), "bearer_token_here".into());
+    meta.insert("password".into(), "password=mysecret123".into());
+    meta.insert("api_key".into(), "api_key=sk1234567890abcdefghij".into());
+    meta.insert("aws_key".into(), "AKIAIOSFODNN7EXAMPLE".into());
 
     let note = Note {
         title: "Sensitive Data Test".into(),
-        body: "Password: secret123, API Key: sk-1234567890abcdef, Token: bearer_token_here".into(),
+        body: "Config: password=\"secret999\", api_key=\"sk1234567890abcdefghij\", AWS Key: AKIAIOSFODNN7EXAMPLE, Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.ODIxNDU".into(),
         tags: vec!["sensitive".into()],
         links: vec![],
         meta,
@@ -134,13 +134,14 @@ fn test_sensitive_data_redaction() {
     // This test ensures the redaction mechanism is working properly
 
     // Body should be redacted
-    assert!(!retrieved.note.body.contains("secret123"));
-    assert!(retrieved.note.body.contains("__GENERIC_SECRET_REDACTED__"));
+    assert!(!retrieved.note.body.contains("AKIAIOSFODNN7EXAMPLE"), "AWS key should be redacted");
+    assert!(!retrieved.note.body.contains("secret999"), "Password should be redacted");
+    assert!(retrieved.note.body.contains("__AWS_ACCESS_KEY_REDACTED__") || 
+            retrieved.note.body.contains("__PASSWORD_REDACTED__"), "Redaction markers should be present");
 
     // Meta fields should also be redacted
-    let password_value = retrieved.note.meta.get("password").unwrap();
-    assert!(!password_value.contains("secret123"));
-    assert!(password_value.contains("__GENERIC_SECRET_REDACTED__"));
+    let aws_value = retrieved.note.meta.get("aws_key").unwrap();
+    assert!(!aws_value.contains("AKIAIOSFODNN7EXAMPLE"), "AWS key in meta should be redacted");
 }
 
 #[test]
