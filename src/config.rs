@@ -19,6 +19,42 @@ pub struct FukuraConfig {
 }
 
 impl FukuraConfig {
+    /// Get global config directory path
+    pub fn global_config_dir() -> Result<std::path::PathBuf> {
+        let home = std::env::var("HOME").context("HOME environment variable not set")?;
+        Ok(std::path::PathBuf::from(home).join(".fukura"))
+    }
+
+    /// Get global config file path
+    pub fn global_config_path() -> Result<std::path::PathBuf> {
+        Ok(Self::global_config_dir()?.join("config.toml"))
+    }
+
+    /// Load global config
+    pub fn load_global() -> Result<Self> {
+        let path = Self::global_config_path()?;
+        Self::load(&path)
+    }
+
+    /// Load config with global fallback
+    pub fn load_with_global_fallback(path: &Path) -> Result<Self> {
+        // Try local config first
+        let mut config = Self::load(path)?;
+        
+        // Load global config for defaults
+        if let Ok(global) = Self::load_global() {
+            // Use global values if local ones are not set
+            if config.default_remote.is_none() && global.default_remote.is_some() {
+                config.default_remote = global.default_remote;
+            }
+            if config.auto_sync.is_none() && global.auto_sync.is_some() {
+                config.auto_sync = global.auto_sync;
+            }
+        }
+        
+        Ok(config)
+    }
+
     pub fn load(path: &Path) -> Result<Self> {
         if !path.exists() {
             return Ok(Self::default());

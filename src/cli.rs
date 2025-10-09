@@ -325,6 +325,9 @@ pub struct RemoteCommand {
 
     #[arg(long, help = "Clear the configured default remote")]
     clear: bool,
+
+    #[arg(long, help = "Set as global default (applies to all projects)")]
+    global: bool,
 }
 
 #[derive(Debug, Args)]
@@ -627,11 +630,12 @@ fn handle_search(cli: &Cli, cmd: &SearchCommand) -> Result<()> {
     }
     render_search_table(&hits);
     if let Some(first) = hits.first() {
+        let short_id = &first.object_id[..8.min(first.object_id.len())];
         println!(
             "{} View: fuku view {} · Open: fuku open {}",
             "Hint".bold().dimmed(),
-            first.object_id,
-            first.object_id
+            short_id,
+            short_id
         );
     }
     Ok(())
@@ -838,30 +842,53 @@ async fn handle_sync(cli: &Cli, cmd: &SyncCommand) -> Result<()> {
 }
 
 fn handle_config(cli: &Cli, cmd: &ConfigCommand) -> Result<()> {
-    let repo = open_repo(cli)?;
     match cmd {
         ConfigCommand::Remote(remote) => {
             ensure!(
                 !(remote.clear && remote.set.is_some()),
                 "Use either --set or --clear, not both"
             );
-            let next = if remote.clear {
-                update_remote(&repo, None)?
+            
+            if remote.global {
+                // Handle global config
+                let config_path = crate::config::FukuraConfig::global_config_path()?;
+                let mut config = crate::config::FukuraConfig::load(&config_path)?;
+                
+                if remote.clear {
+                    config.default_remote = None;
+                    config.save(&config_path)?;
+                    if !cli.quiet {
+                        println!("{} Global remote cleared", "⚙".yellow());
+                    }
+                } else if let Some(url) = &remote.set {
+                    config.default_remote = Some(url.clone());
+                    config.save(&config_path)?;
+                    if !cli.quiet {
+                        println!("{} Global remote set to {} (applies to all projects)", "⚙".yellow(), url);
+                    }
+                }
             } else {
-                let value = remote
-                    .set
-                    .as_deref()
-                    .context("Specify --set <url> or --clear")?;
-                update_remote(&repo, Some(value))?
-            };
-            if !cli.quiet {
-                match next {
-                    Some(url) => println!("{} Remote set to {}", "⚙".yellow(), url),
-                    None => println!("{} Remote cleared", "⚙".yellow()),
+                // Handle local config
+                let repo = open_repo(cli)?;
+                let next = if remote.clear {
+                    update_remote(&repo, None)?
+                } else {
+                    let value = remote
+                        .set
+                        .as_deref()
+                        .context("Specify --set <url> or --clear")?;
+                    update_remote(&repo, Some(value))?
+                };
+                if !cli.quiet {
+                    match next {
+                        Some(url) => println!("{} Remote set to {}", "⚙".yellow(), url),
+                        None => println!("{} Remote cleared", "⚙".yellow()),
+                    }
                 }
             }
         }
         ConfigCommand::Redact(redact) => {
+            let repo = open_repo(cli)?;
             let mut additions = Vec::new();
             for item in &redact.set {
                 additions.push(parse_redaction_entry(item)?);

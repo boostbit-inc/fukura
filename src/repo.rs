@@ -267,7 +267,7 @@ impl FukuraRepo {
     }
 
     pub fn config(&self) -> Result<FukuraConfig> {
-        FukuraConfig::load(&self.config_path())
+        FukuraConfig::load_with_global_fallback(&self.config_path())
     }
 
     pub fn collect_tags(&self) -> Result<Vec<String>> {
@@ -292,6 +292,23 @@ impl FukuraRepo {
 
     pub fn resolve_object_id(&self, input: &str) -> Result<String> {
         let candidate = input.trim();
+        
+        // Handle @latest shorthand
+        if candidate == "@latest" {
+            return self.latest()?.context("No notes found. Use @latest after creating notes.");
+        }
+        
+        // Handle @N shorthand (search result index)
+        if candidate.starts_with('@') {
+            if let Ok(index) = candidate[1..].parse::<usize>() {
+                let hits = self.search("", 20, SearchSort::Updated)?;
+                if index > 0 && index <= hits.len() {
+                    return Ok(hits[index - 1].object_id.clone());
+                }
+                bail!("@{} is out of range. Use search to see available notes.", index);
+            }
+        }
+        
         if candidate.len() >= 64 {
             let object_id = candidate[..64].to_lowercase();
             if self.object_path(&object_id).exists() {

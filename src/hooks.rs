@@ -85,7 +85,7 @@ impl HookManager {
         let bashrc_path = self.get_bashrc_path()?;
         let hook_content = self.generate_bash_hook();
 
-        if !self.is_hook_installed(&bashrc_path, "fukura")? {
+        if !self.is_hook_installed(&bashrc_path, "bash")? {
             self.append_to_file(&bashrc_path, &hook_content)?;
             println!("✅ Installed Fukura hooks for bash");
         } else {
@@ -99,7 +99,7 @@ impl HookManager {
         let zshrc_path = self.get_zshrc_path()?;
         let hook_content = self.generate_zsh_hook();
 
-        if !self.is_hook_installed(&zshrc_path, "fukura")? {
+        if !self.is_hook_installed(&zshrc_path, "zsh")? {
             self.append_to_file(&zshrc_path, &hook_content)?;
             println!("✅ Installed Fukura hooks for zsh");
         } else {
@@ -173,12 +173,12 @@ impl HookManager {
 
     fn check_bash_hooks(&self) -> Result<bool> {
         let bashrc_path = self.get_bashrc_path()?;
-        self.is_hook_installed(&bashrc_path, "fukura")
+        self.is_hook_installed(&bashrc_path, "bash")
     }
 
     fn check_zsh_hooks(&self) -> Result<bool> {
         let zshrc_path = self.get_zshrc_path()?;
-        self.is_hook_installed(&zshrc_path, "fukura")
+        self.is_hook_installed(&zshrc_path, "zsh")
     }
 
     fn check_fish_hooks(&self) -> Result<bool> {
@@ -189,7 +189,7 @@ impl HookManager {
 
     fn check_powershell_hooks(&self) -> Result<bool> {
         let profile_path = self.get_powershell_profile_path()?;
-        self.is_hook_installed(&profile_path, "fukura")
+        self.is_hook_installed(&profile_path, "powershell")
     }
 
     // Helper methods for file paths
