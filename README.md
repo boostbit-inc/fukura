@@ -230,6 +230,24 @@ cargo dist build --target x86_64-unknown-linux-gnu --artifacts all
 scripts/linux/build-apt-repo.sh dist
 ```
 
+## Security
+
+Fukura takes security seriously:
+
+- **Automatic Secret Redaction**: AWS keys, API tokens, passwords, and more are automatically redacted
+- **Privacy-First**: All notes are private by default, stored locally
+- **Customizable Patterns**: Add organization-specific redaction rules
+- **No Telemetry**: Zero data collection or tracking
+
+See [SECURITY.md](SECURITY.md) for detailed security information.
+
+## Performance
+
+- **Fast Search**: Tantivy-based full-text search
+- **Efficient Storage**: Pack files reduce disk usage
+- **Optimized Indexing**: Incremental indexing for large repositories
+- **Low Memory**: Designed for resource-constrained environments
+
 ## Licenses
 
 - Code: Apache-2.0
