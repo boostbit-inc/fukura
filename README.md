@@ -4,35 +4,50 @@ Fukura is a Rust CLI for capturing recurring error fixes in a content-addressabl
 
 ## Install
 
-### Debian / Ubuntu (recommended)
+### Linux / macOS / WSL2
+
+Download and extract the latest release for your platform:
 
 ```bash
-# 1) install the signing key
-wget -qO - https://fukura.dev/apt/fukura-archive-keyring.gpg | sudo tee /usr/share/keyrings/fukura.gpg > /dev/null
+# Download (replace with your platform)
+curl -LO https://github.com/boostbit-inc/fukura/releases/latest/download/fukura-x86_64-unknown-linux-gnu.tar.xz
 
-# 2) register the repository
-echo "deb [signed-by=/usr/share/keyrings/fukura.gpg] https://fukura.dev/apt stable main" | sudo tee /etc/apt/sources.list.d/fukura.list
+# Extract
+tar -xf fukura-x86_64-unknown-linux-gnu.tar.xz
 
-# 3) install
-sudo apt update
-sudo apt install fukura
+# Move to PATH
+sudo mv fukura /usr/local/bin/
+sudo mv fuku /usr/local/bin/
+
+# Verify installation
+fuku --version
 ```
 
-(If you host your own mirror, replace the URLs above with your endpoint. The CI job publishes a ready-to-serve `dist/apt` tree.)
+**Platform URLs:**
+- Linux (x86_64): `fukura-x86_64-unknown-linux-gnu.tar.xz`
+- Linux (ARM64): `fukura-aarch64-unknown-linux-gnu.tar.xz`
+- macOS (Intel): `fukura-x86_64-apple-darwin.tar.xz`
+- macOS (Apple Silicon): `fukura-aarch64-apple-darwin.tar.xz`
 
-### Portable binaries
+### Windows
 
-Download the latest archive for your platform from GitHub Releases:
+Download and extract the latest release:
 
-```bash
-curl -LO https://github.com/boostbit-inc/fukura/releases/download/<tag>/fukura-<platform>.tar.gz
-mkdir -p ~/.local/bin
-cd ~/.local/bin
-tar -xzf ~/Downloads/fukura-<platform>.tar.gz
-export PATH="$HOME/.local/bin:$PATH"
+```powershell
+# Download
+curl -LO https://github.com/boostbit-inc/fukura/releases/latest/download/fukura-x86_64-pc-windows-msvc.zip
+
+# Extract to desired location
+Expand-Archive fukura-x86_64-pc-windows-msvc.zip -DestinationPath C:\Tools\fukura
+
+# Add to PATH (PowerShell as Administrator)
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\Tools\fukura", "Machine")
+
+# Verify installation
+fuku --version
 ```
 
-### Build from source
+### From Source
 
 ```bash
 git clone https://github.com/boostbit-inc/fukura.git
@@ -41,6 +56,10 @@ cargo install --path .
 ```
 
 The binary installs as `fukura` and a convenience alias `fuku` is provided.
+
+### APT Repository (Coming Soon)
+
+APT repository hosting is planned for future releases. Currently, please use direct downloads from GitHub Releases.
 
 ## 🚀 Quickstart
 
