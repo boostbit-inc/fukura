@@ -1189,8 +1189,8 @@ fn resolve_author(name: Option<&str>, email: Option<&str>) -> Author {
 fn render_search_table(hits: &[SearchHit]) {
     if hits.is_empty() {
         println!(
-            "{} 何もヒットしませんでした。try broader terms.",
-            "⚪".dimmed()
+            "{} No results found. Try broader search terms.",
+            "Info:".dimmed()
         );
         return;
     }
@@ -2084,7 +2084,7 @@ fn handle_hook(cli: &Cli, cmd: &HookCommand) -> Result<()> {
     } else {
         // Show help
         if !cli.quiet {
-            println!("{} Hook management commands:", "🔧".blue());
+            println!("{} Hook management commands:", "Info:".blue());
             println!("  --install   Install shell hooks");
             println!("  --uninstall Remove shell hooks");
             println!("  --status    Check hook installation status");
@@ -2129,7 +2129,7 @@ async fn handle_monitor(cli: &Cli, cmd: &MonitorCommand) -> Result<()> {
     } else if cmd.start {
         // Start directory monitoring
         if !cli.quiet {
-            println!("{} Starting directory monitoring...", "🔍".blue());
+            println!("{} Starting directory monitoring...", "Info:".blue());
         }
 
         let mut monitor = crate::directory_monitor::DirectoryMonitor::new();
@@ -2167,7 +2167,7 @@ async fn handle_monitor(cli: &Cli, cmd: &MonitorCommand) -> Result<()> {
     } else {
         // Show help
         if !cli.quiet {
-            println!("{} Monitor management commands:", "🔧".blue());
+            println!("{} Monitor management commands:", "Info:".blue());
             println!("  --auto-start  Auto-start daemon for current directory");
             println!("  --start       Start directory monitoring");
             println!("  --stop        Stop directory monitoring");
