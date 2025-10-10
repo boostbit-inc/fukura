@@ -1975,7 +1975,7 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
         }
         return Ok(());
     }
-    
+
     if cmd.test_notification {
         let notif_mgr = crate::notification::NotificationManager::new(repo.root())?;
         if !cli.quiet {
