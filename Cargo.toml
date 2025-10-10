@@ -1,6 +1,6 @@
 [package]
 name = "fukura"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2021"
 description = "An intelligent knowledge management system with automatic error capture and solution tracking"
 license = "Apache-2.0"
@@ -46,6 +46,7 @@ html-escape = "0.2"
 tracing = "0.1"
 which = "6.0"
 is-terminal = "0.4"  # Modern replacement for atty
+notify-rust = "4.11"  # OS notifications
 
 [dev-dependencies]
 tempfile = "3.10"

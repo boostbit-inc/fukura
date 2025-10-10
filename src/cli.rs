@@ -98,12 +98,6 @@ pub enum Commands {
 
     /// Manage background daemon
     Daemon(DaemonCommand),
-
-    /// Manage shell hooks
-    Hook(HookCommand),
-
-    /// Manage directory monitoring
-    Monitor(MonitorCommand),
 }
 
 #[derive(Debug, Args)]
@@ -340,6 +334,27 @@ pub struct DaemonCommand {
     #[arg(long, help = "Run daemon in foreground (for debugging)")]
     foreground: bool,
 
+    #[arg(long, help = "Install shell hooks")]
+    install_hooks: bool,
+
+    #[arg(long, help = "Uninstall shell hooks")]
+    uninstall_hooks: bool,
+
+    #[arg(long, help = "Check shell hooks status")]
+    hooks_status: bool,
+
+    #[arg(long, help = "Enable error notifications")]
+    notifications_enable: bool,
+
+    #[arg(long, help = "Disable error notifications")]
+    notifications_disable: bool,
+
+    #[arg(long, help = "Check notification status")]
+    notifications_status: bool,
+
+    #[arg(long, help = "Test notifications (send test notification)")]
+    test_notification: bool,
+
     #[arg(long, hide = true)]
     background: bool,
 
@@ -351,33 +366,6 @@ pub struct DaemonCommand {
 
     #[arg(long, hide = true)]
     check_solutions: bool,
-}
-
-#[derive(Debug, Args)]
-pub struct HookCommand {
-    #[arg(long, help = "Install hooks")]
-    install: bool,
-
-    #[arg(long, help = "Uninstall hooks")]
-    uninstall: bool,
-
-    #[arg(long, help = "Check status")]
-    status: bool,
-}
-
-#[derive(Debug, Args)]
-pub struct MonitorCommand {
-    #[arg(long, help = "Start monitoring")]
-    start: bool,
-
-    #[arg(long, help = "Stop monitoring")]
-    stop: bool,
-
-    #[arg(long, help = "Check status")]
-    status: bool,
-
-    #[arg(long, help = "Auto-start daemon")]
-    auto_start: bool,
 }
 
 pub async fn run() -> Result<()> {
@@ -395,8 +383,6 @@ pub async fn run() -> Result<()> {
         Commands::Sync(cmd) => handle_sync(&cli, cmd).await?,
         Commands::Config { command } => handle_config(&cli, command)?,
         Commands::Daemon(cmd) => handle_daemon(&cli, cmd).await?,
-        Commands::Hook(cmd) => handle_hook(&cli, cmd)?,
-        Commands::Monitor(cmd) => handle_monitor(&cli, cmd).await?,
     }
     Ok(())
 }
@@ -1921,6 +1907,96 @@ fn format_privacy(privacy: &Privacy) -> String {
 
 async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
     let repo = open_repo(cli)?;
+
+    // Handle shell hooks management
+    if cmd.install_hooks {
+        let hook_manager = crate::hooks::HookManager::new(repo.root());
+        hook_manager.install_hooks()?;
+        if !cli.quiet {
+            println!("{} Shell hooks installed successfully", "".green());
+        }
+        return Ok(());
+    }
+
+    if cmd.uninstall_hooks {
+        let hook_manager = crate::hooks::HookManager::new(repo.root());
+        hook_manager.uninstall_hooks()?;
+        if !cli.quiet {
+            println!("{} Shell hooks uninstalled", "".yellow());
+        }
+        return Ok(());
+    }
+
+    if cmd.hooks_status {
+        let hook_manager = crate::hooks::HookManager::new(repo.root());
+        let installed = hook_manager.are_hooks_installed()?;
+        if !cli.quiet {
+            if installed {
+                println!("{} Shell hooks are installed", "".green());
+            } else {
+                println!("{} Shell hooks are not installed", "".red());
+                println!("{} Use 'fuku daemon --install-hooks' to install", "".cyan());
+            }
+        }
+        return Ok(());
+    }
+
+    // Handle notification settings
+    if cmd.notifications_enable {
+        let mut notif_mgr = crate::notification::NotificationManager::new(repo.root())?;
+        notif_mgr.enable()?;
+        if !cli.quiet {
+            println!("{} Error notifications enabled", "".green());
+        }
+        return Ok(());
+    }
+
+    if cmd.notifications_disable {
+        let mut notif_mgr = crate::notification::NotificationManager::new(repo.root())?;
+        notif_mgr.disable()?;
+        if !cli.quiet {
+            println!("{} Error notifications disabled", "".yellow());
+        }
+        return Ok(());
+    }
+
+    if cmd.notifications_status {
+        let notif_mgr = crate::notification::NotificationManager::new(repo.root())?;
+        if !cli.quiet {
+            if notif_mgr.is_enabled() {
+                println!("{} Notifications: {}", "".blue(), "Enabled".green());
+            } else {
+                println!("{} Notifications: {}", "".blue(), "Disabled".red());
+                println!(
+                    "{} Use 'fuku daemon --notifications-enable' to enable",
+                    "".cyan()
+                );
+            }
+        }
+        return Ok(());
+    }
+    
+    if cmd.test_notification {
+        let notif_mgr = crate::notification::NotificationManager::new(repo.root())?;
+        if !cli.quiet {
+            println!("{} Sending test notification...", "".blue());
+        }
+        match notif_mgr.send_test_notification() {
+            Ok(_) => {
+                if !cli.quiet {
+                    println!("{} Test notification sent successfully", "".green());
+                    println!("{} Check your notification center", "".cyan());
+                }
+            }
+            Err(e) => {
+                if !cli.quiet {
+                    println!("{} Failed to send notification: {}", "".red(), e);
+                }
+            }
+        }
+        return Ok(());
+    }
+
     let config = crate::daemon::DaemonConfig::default();
     let daemon = crate::daemon::FukuraDaemon::new(repo.root(), config)?;
 
@@ -2058,120 +2134,6 @@ async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {
                     println!("{} Use 'fukura daemon --status' to check status", "".blue());
                 }
             }
-        }
-    }
-
-    Ok(())
-}
-
-fn handle_hook(cli: &Cli, cmd: &HookCommand) -> Result<()> {
-    let repo = open_repo(cli)?;
-    let hook_manager = crate::hooks::HookManager::new(repo.root());
-
-    if cmd.status {
-        let installed = hook_manager.are_hooks_installed()?;
-        if !cli.quiet {
-            if installed {
-                println!("{} Shell hooks are installed", "".green());
-            } else {
-                println!("{} Shell hooks are not installed", "".red());
-            }
-        }
-    } else if cmd.uninstall {
-        hook_manager.uninstall_hooks()?;
-    } else if cmd.install {
-        hook_manager.install_hooks()?;
-    } else {
-        // Show help
-        if !cli.quiet {
-            println!("{} Hook management commands:", "Info:".blue());
-            println!("  --install   Install shell hooks");
-            println!("  --uninstall Remove shell hooks");
-            println!("  --status    Check hook installation status");
-        }
-    }
-
-    Ok(())
-}
-
-async fn handle_monitor(cli: &Cli, cmd: &MonitorCommand) -> Result<()> {
-    if cmd.auto_start {
-        // Auto-start daemon for current directory
-        let cwd = std::env::current_dir()?;
-        let fukura_dir = cwd.join(".fukura");
-
-        if !fukura_dir.exists() {
-            if !cli.quiet {
-                println!(
-                    "{} No .fukura directory found in current directory",
-                    "".red()
-                );
-                println!("{} Run 'fuku init' first", "".cyan());
-            }
-            return Ok(());
-        }
-
-        let _repo = FukuraRepo::discover(Some(&cwd))?;
-        let daemon_service = crate::daemon_service::DaemonService::new(&cwd);
-
-        if !daemon_service.is_running().await {
-            daemon_service.start_background()?;
-            if !cli.quiet {
-                println!("{} Auto-started daemon for {}", "".green(), cwd.display());
-            }
-        } else if !cli.quiet {
-            println!(
-                "{} Daemon already running for {}",
-                "".green(),
-                cwd.display()
-            );
-        }
-    } else if cmd.start {
-        // Start directory monitoring
-        if !cli.quiet {
-            println!("{} Starting directory monitoring...", "Info:".blue());
-        }
-
-        let mut monitor = crate::directory_monitor::DirectoryMonitor::new();
-        monitor.start_monitoring().await?;
-    } else if cmd.stop {
-        // Stop directory monitoring (not implemented yet)
-        if !cli.quiet {
-            println!(
-                "{} Directory monitoring stop not implemented yet",
-                "".yellow()
-            );
-        }
-    } else if cmd.status {
-        // Check monitoring status
-        let cwd = std::env::current_dir()?;
-        let fukura_dir = cwd.join(".fukura");
-
-        if fukura_dir.exists() {
-            let daemon_service = crate::daemon_service::DaemonService::new(&cwd);
-            let is_running = daemon_service.is_running().await;
-
-            if !cli.quiet {
-                if is_running {
-                    println!("{} Daemon is running for {}", "".green(), cwd.display());
-                } else {
-                    println!("{} Daemon is not running for {}", "".red(), cwd.display());
-                }
-            }
-        } else if !cli.quiet {
-            println!(
-                "{} No .fukura directory found in current directory",
-                "".red()
-            );
-        }
-    } else {
-        // Show help
-        if !cli.quiet {
-            println!("{} Monitor management commands:", "Info:".blue());
-            println!("  --auto-start  Auto-start daemon for current directory");
-            println!("  --start       Start directory monitoring");
-            println!("  --stop        Stop directory monitoring");
-            println!("  --status      Check monitoring status");
         }
     }
 

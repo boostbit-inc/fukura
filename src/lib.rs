@@ -8,6 +8,7 @@ pub mod directory_monitor;
 pub mod hooks;
 pub mod index;
 pub mod models;
+pub mod notification;
 pub mod pack;
 pub mod redaction;
 pub mod repo;

@@ -8,6 +8,7 @@ use tokio::time;
 use tracing::{debug, info};
 
 use crate::models::{Author, Note, Privacy};
+use crate::notification::NotificationManager;
 use crate::repo::FukuraRepo;
 
 /// Daemon for monitoring and capturing error patterns
@@ -17,6 +18,7 @@ pub struct FukuraDaemon {
     pub error_patterns: Arc<RwLock<HashMap<String, ErrorPattern>>>,
     pub repo_path: std::path::PathBuf,
     config: DaemonConfig,
+    notification_manager: Option<Arc<NotificationManager>>,
 }
 
 #[derive(Debug, Clone)]
@@ -85,10 +87,19 @@ pub struct ErrorPattern {
     pub solutions: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct SolutionHit {
+    pub note_id: String,
+    pub title: String,
+    pub snippet: String,
+    pub confidence: f64,
+}
+
 impl FukuraDaemon {
     /// Create a new daemon instance
     pub fn new(repo_path: &Path, config: DaemonConfig) -> Result<Self> {
         let repo = Arc::new(FukuraRepo::discover(Some(repo_path))?);
+        let notification_manager = NotificationManager::new(repo_path).ok().map(Arc::new);
 
         Ok(Self {
             repo,
@@ -96,6 +107,7 @@ impl FukuraDaemon {
             error_patterns: Arc::new(RwLock::new(HashMap::new())),
             repo_path: repo_path.to_path_buf(),
             config,
+            notification_manager,
         })
     }
 
@@ -109,11 +121,13 @@ impl FukuraDaemon {
         // Start monitoring tasks
         let sessions1 = self.sessions.clone();
         let sessions2 = self.sessions.clone();
+        let sessions3 = self.sessions.clone();
         let error_patterns = self.error_patterns.clone();
         let config1 = self.config.clone();
         let config2 = self.config.clone();
         let repo = self.repo.clone();
         let repo_path = self.repo_path.clone();
+        let notif_mgr = self.notification_manager.clone();
 
         // Session cleanup task
         tokio::spawn(async move {
@@ -142,8 +156,400 @@ impl FukuraDaemon {
             }
         });
 
+        // Start Unix Domain Socket server for IPC (best practice)
+        let sessions_for_server = sessions3.clone();
+        let socket_path = self.get_socket_path();
+        tokio::spawn(async move {
+            if let Err(e) =
+                Self::start_socket_server(sessions_for_server, notif_mgr, socket_path).await
+            {
+                tracing::error!("Socket server error: {}", e);
+            }
+        });
+
         info!("Fukura daemon started successfully");
         Ok(())
+    }
+
+    /// Get socket path for IPC
+    fn get_socket_path(&self) -> std::path::PathBuf {
+        self.repo_path.join(".fukura").join("daemon.sock")
+    }
+
+    /// Start IPC server for shell hook communication (BEST PRACTICE: Unix Socket / Named Pipe)
+    async fn start_socket_server(
+        sessions: Arc<RwLock<HashMap<String, ActiveSession>>>,
+        notif_mgr: Option<Arc<NotificationManager>>,
+        socket_path: std::path::PathBuf,
+    ) -> Result<()> {
+        #[cfg(unix)]
+        {
+            Self::start_unix_socket_server(sessions, notif_mgr, socket_path).await
+        }
+        
+        #[cfg(windows)]
+        {
+            Self::start_named_pipe_server(sessions, notif_mgr, socket_path).await
+        }
+    }
+
+    #[cfg(unix)]
+    async fn start_unix_socket_server(
+        sessions: Arc<RwLock<HashMap<String, ActiveSession>>>,
+        notif_mgr: Option<Arc<NotificationManager>>,
+        socket_path: std::path::PathBuf,
+    ) -> Result<()> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::UnixListener;
+
+        // Remove old socket if exists
+        let _ = std::fs::remove_file(&socket_path);
+
+        // Create Unix socket
+        let listener = UnixListener::bind(&socket_path)?;
+        info!("IPC socket server listening on {:?}", socket_path);
+
+        loop {
+            match listener.accept().await {
+                Ok((mut stream, _)) => {
+                    let sessions = sessions.clone();
+                    let notif_mgr = notif_mgr.clone();
+
+                    tokio::spawn(async move {
+                        let mut buffer = vec![0u8; 4096];
+                        match stream.read(&mut buffer).await {
+                            Ok(n) if n > 0 => {
+                                let data = &buffer[..n];
+                                if let Ok(msg) = String::from_utf8(data.to_vec()) {
+                                    // Parse message: "session_id|command|exit_code|working_dir"
+                                    let parts: Vec<&str> = msg.trim().split('|').collect();
+                                    if parts.len() >= 4 {
+                                        let session_id = parts[0];
+                                        let command = parts[1];
+                                        let exit_code = parts[2].parse::<i32>().unwrap_or(0);
+                                        let working_dir = parts[3];
+
+                                        // Record command
+                                        let mut sessions = sessions.write().await;
+
+                                        if !sessions.contains_key(session_id) {
+                                            sessions.insert(
+                                                session_id.to_string(),
+                                                ActiveSession {
+                                                    id: session_id.to_string(),
+                                                    start_time: SystemTime::now(),
+                                                    last_activity: SystemTime::now(),
+                                                    commands: Vec::new(),
+                                                    errors: Vec::new(),
+                                                    context: SessionContext {
+                                                        working_directory: working_dir.to_string(),
+                                                        git_branch: None,
+                                                        git_status: None,
+                                                        environment: HashMap::new(),
+                                                    },
+                                                },
+                                            );
+                                        }
+
+                                        if let Some(session) = sessions.get_mut(session_id) {
+                                            session.commands.push(CommandEntry {
+                                                command: command.to_string(),
+                                                exit_code: Some(exit_code),
+                                                timestamp: SystemTime::now(),
+                                                working_directory: working_dir.to_string(),
+                                            });
+                                            session.last_activity = SystemTime::now();
+
+                                            // Check if error and send notification
+                                            if exit_code != 0 {
+                                                let error_message = format!(
+                                                    "Command '{}' failed with exit code {}",
+                                                    command, exit_code
+                                                );
+                                                session.errors.push(ErrorEntry {
+                                                    message: error_message.clone(),
+                                                    normalized: error_message.clone(),
+                                                    source: "shell".to_string(),
+                                                    timestamp: SystemTime::now(),
+                                                });
+
+                                                // BEST PRACTICE: Create note immediately (like Git commit)
+                                                // Users can access via: fuku search, fuku view @latest
+                                                drop(sessions);
+                                                let wd_path = std::path::PathBuf::from(working_dir);
+                                                let repo_clone = Arc::new(
+                                                    FukuraRepo::discover(Some(&wd_path))
+                                                        .unwrap_or_else(|_| {
+                                                            FukuraRepo::discover(None)
+                                                                .expect("Failed to discover repo")
+                                                        }),
+                                                );
+
+                                                let note = Note {
+                                                    title: format!("Error: {}", command),
+                                                    body: format!(
+                                                        "## Command Failed\n\n```\n{}\n```\n\n**Exit Code**: {}\n\n**Error**: {}\n\n**Working Directory**: {}\n\n**Time**: {}",
+                                                        command,
+                                                        exit_code,
+                                                        error_message,
+                                                        working_dir,
+                                                        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
+                                                    ),
+                                                    tags: vec!["error".to_string(), "auto-captured".to_string()],
+                                                    links: vec![],
+                                                    meta: std::collections::BTreeMap::from([
+                                                        ("exit_code".to_string(), exit_code.to_string()),
+                                                        ("working_dir".to_string(), working_dir.to_string()),
+                                                    ]),
+                                                    solutions: vec![],
+                                                    privacy: Privacy::Private,
+                                                    created_at: chrono::Utc::now(),
+                                                    updated_at: chrono::Utc::now(),
+                                                    author: Author {
+                                                        name: std::env::var("USER").unwrap_or_else(|_| "unknown".to_string()),
+                                                        email: None,
+                                                    },
+                                                };
+
+                                                if let Ok(record) = repo_clone.store_note(note) {
+                                                    tracing::info!("Note created: {} for error: {}", &record.object_id[..8], command);
+                                                    
+                                                    // WORLD-CLASS: Search for similar errors and solutions
+                                                    let similar_solutions = Self::find_similar_solutions(&repo_clone, command, exit_code);
+                                                    
+                                                    // Send intelligent notification
+                                                    if let Some(ref nm) = notif_mgr {
+                                                        tracing::info!("Sending notification for error: {}", command);
+                                                        if let Ok(solutions) = similar_solutions {
+                                                            if !solutions.is_empty() {
+                                                                tracing::info!("Found {} solutions", solutions.len());
+                                                                if let Err(e) = nm.notify_error_with_solutions(
+                                                                    command,
+                                                                    &error_message,
+                                                                    &record.object_id,
+                                                                    &solutions,
+                                                                ) {
+                                                                    tracing::error!("Notification failed: {}", e);
+                                                                } else {
+                                                                    tracing::info!("Notification sent successfully with solutions");
+                                                                }
+                                                            } else {
+                                                                if let Err(e) = nm.notify_error_with_id(
+                                                                    command,
+                                                                    &error_message,
+                                                                    &record.object_id,
+                                                                ) {
+                                                                    tracing::error!("Notification failed: {}", e);
+                                                                } else {
+                                                                    tracing::info!("Notification sent successfully");
+                                                                }
+                                                            }
+                                                        } else {
+                                                            if let Err(e) = nm.notify_error_with_id(
+                                                                command,
+                                                                &error_message,
+                                                                &record.object_id,
+                                                            ) {
+                                                                tracing::error!("Notification failed: {}", e);
+                                                            } else {
+                                                                tracing::info!("Notification sent successfully");
+                                                            }
+                                                        }
+                                                    } else {
+                                                        tracing::warn!("Notification manager not available");
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Send response
+                                        let _ = stream.write_all(b"OK\n").await;
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    });
+                }
+                Err(e) => {
+                    tracing::error!("Socket accept error: {}", e);
+                }
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    async fn start_named_pipe_server(
+        sessions: Arc<RwLock<HashMap<String, ActiveSession>>>,
+        notif_mgr: Option<Arc<NotificationManager>>,
+        _socket_path: std::path::PathBuf,
+    ) -> Result<()> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::windows::named_pipe::{ServerOptions, NamedPipeServer};
+
+        let pipe_name = r"\\.\pipe\fukura_daemon";
+        
+        loop {
+            let server = ServerOptions::new()
+                .first_pipe_instance(true)
+                .create(pipe_name)?;
+
+            let sessions = sessions.clone();
+            let notif_mgr = notif_mgr.clone();
+
+            tokio::spawn(async move {
+                let mut server = server;
+                server.connect().await.ok();
+
+                let mut buffer = vec![0u8; 4096];
+                match server.read(&mut buffer).await {
+                    Ok(n) if n > 0 => {
+                        let data = &buffer[..n];
+                        if let Ok(msg) = String::from_utf8(data.to_vec()) {
+                            let parts: Vec<&str> = msg.trim().split('|').collect();
+                            if parts.len() >= 4 {
+                                let session_id = parts[0];
+                                let command = parts[1];
+                                let exit_code = parts[2].parse::<i32>().unwrap_or(0);
+                                let working_dir = parts[3];
+
+                                let mut sessions = sessions.write().await;
+                                
+                                if !sessions.contains_key(session_id) {
+                                    sessions.insert(
+                                        session_id.to_string(),
+                                        ActiveSession {
+                                            id: session_id.to_string(),
+                                            start_time: SystemTime::now(),
+                                            last_activity: SystemTime::now(),
+                                            commands: Vec::new(),
+                                            errors: Vec::new(),
+                                            context: SessionContext {
+                                                working_directory: working_dir.to_string(),
+                                                git_branch: None,
+                                                git_status: None,
+                                                environment: HashMap::new(),
+                                            },
+                                        },
+                                    );
+                                }
+
+                                if let Some(session) = sessions.get_mut(session_id) {
+                                    session.commands.push(CommandEntry {
+                                        command: command.to_string(),
+                                        exit_code: Some(exit_code),
+                                        timestamp: SystemTime::now(),
+                                        working_directory: working_dir.to_string(),
+                                    });
+                                    session.last_activity = SystemTime::now();
+
+                                    if exit_code != 0 {
+                                        let error_message = format!(
+                                            "Command '{}' failed with exit code {}",
+                                            command, exit_code
+                                        );
+                                        session.errors.push(ErrorEntry {
+                                            message: error_message.clone(),
+                                            normalized: error_message.clone(),
+                                            source: "shell".to_string(),
+                                            timestamp: SystemTime::now(),
+                                        });
+
+                                        drop(sessions);
+                                        let wd_path = std::path::PathBuf::from(working_dir);
+                                        let repo_clone = Arc::new(
+                                            FukuraRepo::discover(Some(&wd_path))
+                                                .unwrap_or_else(|_| {
+                                                    FukuraRepo::discover(None)
+                                                        .expect("Failed to discover repo")
+                                                }),
+                                        );
+
+                                        let note = Note {
+                                            title: format!("Error: {}", command),
+                                            body: format!(
+                                                "## Command Failed\n\n```\n{}\n```\n\n**Exit Code**: {}\n\n**Error**: {}\n\n**Working Directory**: {}\n\n**Time**: {}",
+                                                command,
+                                                exit_code,
+                                                error_message,
+                                                working_dir,
+                                                chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
+                                            ),
+                                            tags: vec!["error".to_string(), "auto-captured".to_string()],
+                                            links: vec![],
+                                            meta: std::collections::BTreeMap::from([
+                                                ("exit_code".to_string(), exit_code.to_string()),
+                                                ("working_dir".to_string(), working_dir.to_string()),
+                                            ]),
+                                            solutions: vec![],
+                                            privacy: Privacy::Private,
+                                            created_at: chrono::Utc::now(),
+                                            updated_at: chrono::Utc::now(),
+                                            author: Author {
+                                                name: std::env::var("USERNAME").unwrap_or_else(|_| "unknown".to_string()),
+                                                email: None,
+                                            },
+                                        };
+
+                                        if let Ok(record) = repo_clone.store_note(note) {
+                                            tracing::info!("Note created: {} for error: {}", &record.object_id[..8], command);
+                                            
+                                            // WORLD-CLASS: Search for similar errors and solutions
+                                            let similar_solutions = Self::find_similar_solutions(&repo_clone, command, exit_code);
+                                            
+                                            // Send intelligent notification
+                                            if let Some(ref nm) = notif_mgr {
+                                                tracing::info!("Sending notification for error: {}", command);
+                                                if let Ok(solutions) = similar_solutions {
+                                                    if !solutions.is_empty() {
+                                                        tracing::info!("Found {} solutions", solutions.len());
+                                                        if let Err(e) = nm.notify_error_with_solutions(
+                                                            command,
+                                                            &error_message,
+                                                            &record.object_id,
+                                                            &solutions,
+                                                        ) {
+                                                            tracing::error!("Notification failed: {}", e);
+                                                        } else {
+                                                            tracing::info!("Notification sent successfully with solutions");
+                                                        }
+                                                    } else {
+                                                        if let Err(e) = nm.notify_error_with_id(
+                                                            command,
+                                                            &error_message,
+                                                            &record.object_id,
+                                                        ) {
+                                                            tracing::error!("Notification failed: {}", e);
+                                                        } else {
+                                                            tracing::info!("Notification sent successfully");
+                                                        }
+                                                    }
+                                                } else {
+                                                    if let Err(e) = nm.notify_error_with_id(
+                                                        command,
+                                                        &error_message,
+                                                        &record.object_id,
+                                                    ) {
+                                                        tracing::error!("Notification failed: {}", e);
+                                                    } else {
+                                                        tracing::info!("Notification sent successfully");
+                                                    }
+                                                }
+                                            } else {
+                                                tracing::warn!("Notification manager not available");
+                                            }
+                                        }
+                                    }
+                                }
+
+                                let _ = server.write_all(b"OK\n").await;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            });
+        }
     }
 
     /// Stop the daemon
@@ -385,14 +791,20 @@ impl FukuraDaemon {
         exit_code: i32,
     ) {
         // Analyze if this command failure is part of a known error pattern
+        let error_message = format!("Command '{}' failed with exit code {}", command, exit_code);
         let error_entry = ErrorEntry {
-            message: format!("Command '{}' failed with exit code {}", command, exit_code),
+            message: error_message.clone(),
             normalized: self.normalize_error_message(&format!("Command failed: {}", command)),
             source: "command".to_string(),
             timestamp: SystemTime::now(),
         };
 
         session.errors.push(error_entry);
+
+        // Send notification
+        if let Some(ref notif_mgr) = self.notification_manager {
+            let _ = notif_mgr.notify_error(command, &error_message);
+        }
     }
 
     async fn get_git_branch(&self, working_dir: &str) -> Result<String> {
@@ -601,6 +1013,70 @@ impl FukuraDaemon {
                 }
             }
         }
+    }
+
+    /// Find similar solutions for an error (WORLD-CLASS)
+    fn find_similar_solutions(repo: &Arc<FukuraRepo>, command: &str, _exit_code: i32) -> Result<Vec<SolutionHit>> {
+        // Search for similar commands in past notes
+        let query = Self::extract_search_terms(command);
+        
+        match repo.search(&query, 10, crate::index::SearchSort::Relevance) {
+            Ok(hits) => {
+                let mut solutions = Vec::new();
+                for hit in hits {
+                    // Check if note has solutions or is marked as resolved
+                    if let Ok(record) = repo.load_note(&hit.object_id) {
+                        // Check for solution indicators
+                        let has_solution = record.note.tags.contains(&"solved".to_string())
+                            || record.note.tags.contains(&"solution".to_string())
+                            || record.note.body.to_lowercase().contains("solution:")
+                            || record.note.body.to_lowercase().contains("fix:")
+                            || record.note.body.to_lowercase().contains("resolved")
+                            || !record.note.solutions.is_empty();
+                        
+                        if has_solution {
+                            solutions.push(SolutionHit {
+                                note_id: record.object_id.clone(),
+                                title: record.note.title.clone(),
+                                snippet: Self::extract_solution_snippet(&record.note.body),
+                                confidence: hit.likes as f64 / 10.0,  // Use likes as confidence indicator
+                            });
+                        }
+                    }
+                }
+                Ok(solutions)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Extract search terms from command (remove noise words)
+    fn extract_search_terms(command: &str) -> String {
+        let noise_words = ["cd", "ls", "cat", "echo", "mkdir", "rm", "cp", "mv"];
+        let words: Vec<&str> = command
+            .split_whitespace()
+            .filter(|w| !noise_words.contains(w) && !w.starts_with('-'))
+            .take(3)  // Use first 3 meaningful words
+            .collect();
+        words.join(" ")
+    }
+
+    /// Extract solution snippet from note body
+    fn extract_solution_snippet(body: &str) -> String {
+        // Look for solution markers
+        for marker in ["## Solution", "## Fix", "**Solution**:", "**Fix**:"] {
+            if let Some(idx) = body.find(marker) {
+                let start = idx + marker.len();
+                let snippet = &body[start..];
+                if let Some(end_idx) = snippet.find('\n') {
+                    return snippet[..end_idx.min(200)].trim().to_string();
+                }
+                return snippet[..snippet.len().min(200)].trim().to_string();
+            }
+        }
+        
+        // Fallback: first 150 chars
+        body.chars().take(150).collect()
     }
 
     /// Create a note from session data
