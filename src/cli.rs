@@ -96,7 +96,24 @@ pub enum Commands {
         command: ConfigCommand,
     },
 
-    /// Manage background daemon
+    /// Start error capture daemon
+    #[command(name = "start", about = "Start the error capture daemon")]
+    Start,
+
+    /// Stop error capture daemon  
+    #[command(name = "stop", about = "Stop the error capture daemon")]
+    Stop,
+
+    /// Check daemon status
+    #[command(name = "status", about = "Check daemon status and configuration")]
+    Status,
+
+    /// Restart daemon
+    #[command(name = "restart", about = "Restart the error capture daemon")]
+    Restart,
+
+    /// Manage daemon (advanced options)
+    #[command(name = "daemon", about = "Advanced daemon management (hooks, notifications, testing)")]
     Daemon(DaemonCommand),
 }
 
@@ -382,6 +399,10 @@ pub async fn run() -> Result<()> {
         Commands::Pull(cmd) => handle_pull(&cli, cmd).await?,
         Commands::Sync(cmd) => handle_sync(&cli, cmd).await?,
         Commands::Config { command } => handle_config(&cli, command)?,
+        Commands::Start => handle_start(&cli).await?,
+        Commands::Stop => handle_stop(&cli).await?,
+        Commands::Status => handle_status(&cli).await?,
+        Commands::Restart => handle_restart(&cli).await?,
         Commands::Daemon(cmd) => handle_daemon(&cli, cmd).await?,
     }
     Ok(())
@@ -469,7 +490,8 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
         println!("{} Quick Start Guide:", "".cyan());
         println!("  • Add a note:        fuku add --title 'Error solution'");
         println!("  • Search notes:      fuku search 'keyword'");
-        println!("  • Check daemon:      fuku daemon --status");
+        println!("  • Check status:      fuku status");
+        println!("  • Stop/start daemon: fuku stop / fuku start");
         println!("  • Sync to remote:    fuku sync --enable-auto");
     }
 
@@ -1903,6 +1925,78 @@ fn format_privacy(privacy: &Privacy) -> String {
         Privacy::Org => "org".into(),
         Privacy::Public => "public".into(),
     }
+}
+
+// BEST PRACTICE: Simple daemon commands (systemctl-style)
+async fn handle_start(cli: &Cli) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let daemon_service = crate::daemon_service::DaemonService::new(repo.root());
+
+    if daemon_service.is_running().await {
+        if !cli.quiet {
+            println!("{} Daemon is already running", "".green());
+            println!("{} Use 'fuku status' to check details", "".cyan());
+        }
+    } else {
+        daemon_service.start_background()?;
+        if !cli.quiet {
+            println!("{} Daemon started", "".green());
+        }
+    }
+    Ok(())
+}
+
+async fn handle_stop(cli: &Cli) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let daemon_service = crate::daemon_service::DaemonService::new(repo.root());
+
+    if daemon_service.is_running().await {
+        daemon_service.stop_background().await?;
+        if !cli.quiet {
+            println!("{} Daemon stopped", "".yellow());
+        }
+    } else if !cli.quiet {
+        println!("{} Daemon is not running", "".blue());
+    }
+    Ok(())
+}
+
+async fn handle_status(cli: &Cli) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let daemon_service = crate::daemon_service::DaemonService::new(repo.root());
+    let config = repo.config()?;
+
+    if !cli.quiet {
+        if daemon_service.is_running().await {
+            println!("{} Daemon: {}", "".blue(), "Running".green());
+            
+            let hook_manager = crate::hooks::HookManager::new(repo.root());
+            let hooks_installed = hook_manager.are_hooks_installed().unwrap_or(false);
+            println!("{} Hooks: {}", "".blue(), if hooks_installed { "Installed".green() } else { "Not installed".red() });
+            
+            let notif_mgr = crate::notification::NotificationManager::new(repo.root())?;
+            println!("{} Notifications: {}", "".blue(), if notif_mgr.is_enabled() { "Enabled".green() } else { "Disabled".red() });
+            
+            if let Some(remote) = &config.default_remote {
+                println!("{} Remote: {}", "".blue(), remote);
+            }
+            println!("{} Auto-sync: {}", "".blue(), if config.auto_sync.unwrap_or(false) { "Enabled".green() } else { "Disabled".red() });
+        } else {
+            println!("{} Daemon: {}", "".blue(), "Stopped".red());
+            println!("{} Run 'fuku start' to begin monitoring", "".cyan());
+        }
+    }
+    Ok(())
+}
+
+async fn handle_restart(cli: &Cli) -> Result<()> {
+    handle_stop(cli).await?;
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    handle_start(cli).await?;
+    if !cli.quiet {
+        println!("{} Daemon restarted", "".green());
+    }
+    Ok(())
 }
 
 async fn handle_daemon(cli: &Cli, cmd: &DaemonCommand) -> Result<()> {

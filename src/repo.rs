@@ -25,7 +25,8 @@ impl FukuraRepo {
     pub fn init(path: &Path, force: bool) -> Result<Self> {
         let dot_dir = path.join(".fukura");
         if dot_dir.exists() && !force {
-            bail!("Repository already initialized at {}", path.display());
+            eprintln!("Info: Repository already initialized at {}", path.display());
+            return Self::open(path);
         }
         fs::create_dir_all(path)?;
         let repo = Self {
