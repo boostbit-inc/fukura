@@ -279,65 +279,76 @@ impl HookManager {
     // Hook content generators
 
     fn generate_bash_hook(&self) -> String {
-        r#"
-# Fukura hooks - bash
-_fukura_record_command() {
+        format!(
+            r#"
+# Fukura hooks - bash (World-class IPC via Unix Domain Socket)
+_fukura_socket_path="{socket_path}"
+_fukura_last_command=""
+
+_fukura_record_command() {{
     local exit_code=$?
-    local command="${BASH_COMMAND}"
+    local command="$_fukura_last_command"
     local working_dir="$PWD"
+    local session_id=$(echo "$PWD" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "default")
     
-    # Record command with exit code
-    fukura daemon record-command "$(pwd | tr '/' '_')" "$command" "$exit_code" "$working_dir" 2>/dev/null || true
-}
+    if [ -n "$command" ] && [ -S "$_fukura_socket_path" ]; then
+        echo "$session_id|$command|$exit_code|$working_dir" | nc -U -w 1 "$_fukura_socket_path" 2>/dev/null || true
+    fi
+}}
+
+_fukura_preexec() {{
+    _fukura_last_command="$BASH_COMMAND"
+}}
 
 # Hook into command execution
-trap '_fukura_record_command' DEBUG
+trap '_fukura_preexec' DEBUG
 
-# Hook into prompt to capture errors
-_fukura_prompt_hook() {
-    local exit_code=$?
-    if [ $exit_code -ne 0 ]; then
-        # Record the last command as an error
-        fukura daemon record-error "$(pwd | tr '/' '_')" "Command failed with exit code $exit_code" "bash" 2>/dev/null || true
-    fi
-}
-
-# Add to prompt command
+# Hook into prompt
 if [[ -z "$PROMPT_COMMAND" ]]; then
-    PROMPT_COMMAND="_fukura_prompt_hook"
+    PROMPT_COMMAND="_fukura_record_command"
 else
-    PROMPT_COMMAND="${PROMPT_COMMAND}; _fukura_prompt_hook"
+    PROMPT_COMMAND="${{PROMPT_COMMAND}}; _fukura_record_command"
 fi
-"#.to_string()
+"#,
+            socket_path = self.repo_path.join(".fukura").join("daemon.sock").display()
+        )
     }
 
     fn generate_zsh_hook(&self) -> String {
-        r#"
-# Fukura hooks - zsh
-_fukura_record_command() {
+        format!(
+            r#"
+# Fukura hooks - zsh (World-class IPC via Unix Domain Socket)
+_fukura_socket_path="{socket_path}"
+
+_fukura_record_command() {{
     local exit_code=$?
-    local command="${history[${#history}]}"
+    local command="$1"
     local working_dir="$PWD"
+    local session_id="$(echo "$PWD" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "default")"
     
-    # Record command with exit code
-    fukura daemon record-command "$(pwd | tr '/' '_')" "$command" "$exit_code" "$working_dir" 2>/dev/null || true
-}
+    # Send to daemon via Unix socket (fast & secure)
+    if [ -S "$_fukura_socket_path" ]; then
+        echo "$session_id|$command|$exit_code|$working_dir" | nc -U -w 1 "$_fukura_socket_path" 2>/dev/null || true
+    fi
+}}
 
 # Hook into command execution
-preexec_functions+=(_fukura_record_command)
+preexec_functions+=(_fukura_preexec_hook)
+precmd_functions+=(_fukura_precmd_hook)
 
-# Hook into prompt to capture errors
-_fukura_prompt_hook() {
+_fukura_preexec_hook() {{
+    _fukura_last_command="$1"
+}}
+
+_fukura_precmd_hook() {{
     local exit_code=$?
-    if [ $exit_code -ne 0 ]; then
-        # Record the last command as an error
-        fukura daemon record-error "$(pwd | tr '/' '_')" "Command failed with exit code $exit_code" "zsh" 2>/dev/null || true
+    if [ -n "$_fukura_last_command" ]; then
+        _fukura_record_command "$_fukura_last_command"
     fi
-}
-
-# Add to prompt hook
-precmd_functions+=(_fukura_prompt_hook)
-"#.to_string()
+}}
+"#,
+            socket_path = self.repo_path.join(".fukura").join("daemon.sock").display()
+        )
     }
 
     fn generate_fish_hook(&self) -> String {
