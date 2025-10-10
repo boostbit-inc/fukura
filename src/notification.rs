@@ -33,7 +33,14 @@ impl NotificationManager {
             let content = std::fs::read_to_string(&config_path)?;
             toml::from_str(&content).unwrap_or_default()
         } else {
-            NotificationConfig::default()
+            let default_config = NotificationConfig::default();
+            // Create config file with defaults
+            if let Some(parent) = config_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let content = toml::to_string_pretty(&default_config)?;
+            std::fs::write(&config_path, content)?;
+            default_config
         };
 
         Ok(Self {
@@ -114,8 +121,9 @@ impl NotificationManager {
 
         let short_id = &note_id[..8.min(note_id.len())];
         let solution_count = solutions.len();
-        
-        let summary = format!("Fukura: Error Captured ({} solution{} found)",
+
+        let summary = format!(
+            "Fukura: Error Captured ({} solution{} found)",
             solution_count,
             if solution_count > 1 { "s" } else { "" }
         );
@@ -181,20 +189,17 @@ impl NotificationManager {
     ) -> Result<()> {
         // macOS: Use osascript for guaranteed notifications
         use std::process::Command;
-        
+
         let escaped_title = summary.replace('"', r#"\""#);
         let escaped_body = body.replace('"', r#"\""#);
-        
+
         let script = format!(
             r#"display notification "{}" with title "{}""#,
             escaped_body, escaped_title
         );
-        
-        Command::new("osascript")
-            .arg("-e")
-            .arg(&script)
-            .output()?;
-        
+
+        Command::new("osascript").arg("-e").arg(&script).output()?;
+
         Ok(())
     }
 
@@ -202,20 +207,17 @@ impl NotificationManager {
     fn show_notification_detailed_macos(&self, summary: &str, body: &str) -> Result<()> {
         // macOS: Use osascript for guaranteed notifications (BEST PRACTICE)
         use std::process::Command;
-        
+
         let escaped_title = summary.replace('"', r#"\""#);
         let escaped_body = body.replace('"', r#"\""#).replace('\n', " ");
-        
+
         let script = format!(
             r#"display notification "{}" with title "{}" sound name "Submarine""#,
             escaped_body, escaped_title
         );
-        
-        Command::new("osascript")
-            .arg("-e")
-            .arg(&script)
-            .output()?;
-        
+
+        Command::new("osascript").arg("-e").arg(&script).output()?;
+
         Ok(())
     }
 
@@ -300,10 +302,7 @@ impl NotificationManager {
                 r#"display notification "{}" with title "{}" sound name "Submarine""#,
                 body, summary
             );
-            Command::new("osascript")
-                .arg("-e")
-                .arg(&script)
-                .output()?;
+            Command::new("osascript").arg("-e").arg(&script).output()?;
         }
 
         #[cfg(target_os = "linux")]

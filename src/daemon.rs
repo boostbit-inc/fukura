@@ -186,7 +186,7 @@ impl FukuraDaemon {
         {
             Self::start_unix_socket_server(sessions, notif_mgr, socket_path).await
         }
-        
+
         #[cfg(windows)]
         {
             Self::start_named_pipe_server(sessions, notif_mgr, socket_path).await
@@ -312,34 +312,59 @@ impl FukuraDaemon {
                                                 };
 
                                                 if let Ok(record) = repo_clone.store_note(note) {
-                                                    tracing::info!("Note created: {} for error: {}", &record.object_id[..8], command);
-                                                    
+                                                    tracing::info!(
+                                                        "Note created: {} for error: {}",
+                                                        &record.object_id[..8],
+                                                        command
+                                                    );
+
                                                     // WORLD-CLASS: Search for similar errors and solutions
-                                                    let similar_solutions = Self::find_similar_solutions(&repo_clone, command, exit_code);
-                                                    
+                                                    let similar_solutions =
+                                                        Self::find_similar_solutions(
+                                                            &repo_clone,
+                                                            command,
+                                                            exit_code,
+                                                        );
+
                                                     // Send intelligent notification
                                                     if let Some(ref nm) = notif_mgr {
-                                                        tracing::info!("Sending notification for error: {}", command);
+                                                        tracing::info!(
+                                                            "Sending notification for error: {}",
+                                                            command
+                                                        );
                                                         if let Ok(solutions) = similar_solutions {
                                                             if !solutions.is_empty() {
-                                                                tracing::info!("Found {} solutions", solutions.len());
-                                                                if let Err(e) = nm.notify_error_with_solutions(
-                                                                    command,
-                                                                    &error_message,
-                                                                    &record.object_id,
-                                                                    &solutions,
-                                                                ) {
-                                                                    tracing::error!("Notification failed: {}", e);
+                                                                tracing::info!(
+                                                                    "Found {} solutions",
+                                                                    solutions.len()
+                                                                );
+                                                                if let Err(e) = nm
+                                                                    .notify_error_with_solutions(
+                                                                        command,
+                                                                        &error_message,
+                                                                        &record.object_id,
+                                                                        &solutions,
+                                                                    )
+                                                                {
+                                                                    tracing::error!(
+                                                                        "Notification failed: {}",
+                                                                        e
+                                                                    );
                                                                 } else {
                                                                     tracing::info!("Notification sent successfully with solutions");
                                                                 }
                                                             } else {
-                                                                if let Err(e) = nm.notify_error_with_id(
-                                                                    command,
-                                                                    &error_message,
-                                                                    &record.object_id,
-                                                                ) {
-                                                                    tracing::error!("Notification failed: {}", e);
+                                                                if let Err(e) = nm
+                                                                    .notify_error_with_id(
+                                                                        command,
+                                                                        &error_message,
+                                                                        &record.object_id,
+                                                                    )
+                                                                {
+                                                                    tracing::error!(
+                                                                        "Notification failed: {}",
+                                                                        e
+                                                                    );
                                                                 } else {
                                                                     tracing::info!("Notification sent successfully");
                                                                 }
@@ -350,13 +375,18 @@ impl FukuraDaemon {
                                                                 &error_message,
                                                                 &record.object_id,
                                                             ) {
-                                                                tracing::error!("Notification failed: {}", e);
+                                                                tracing::error!(
+                                                                    "Notification failed: {}",
+                                                                    e
+                                                                );
                                                             } else {
                                                                 tracing::info!("Notification sent successfully");
                                                             }
                                                         }
                                                     } else {
-                                                        tracing::warn!("Notification manager not available");
+                                                        tracing::warn!(
+                                                            "Notification manager not available"
+                                                        );
                                                     }
                                                 }
                                             }
@@ -385,10 +415,10 @@ impl FukuraDaemon {
         _socket_path: std::path::PathBuf,
     ) -> Result<()> {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        use tokio::net::windows::named_pipe::{ServerOptions, NamedPipeServer};
+        use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 
         let pipe_name = r"\\.\pipe\fukura_daemon";
-        
+
         loop {
             let server = ServerOptions::new()
                 .first_pipe_instance(true)
@@ -414,7 +444,7 @@ impl FukuraDaemon {
                                 let working_dir = parts[3];
 
                                 let mut sessions = sessions.write().await;
-                                
+
                                 if !sessions.contains_key(session_id) {
                                     sessions.insert(
                                         session_id.to_string(),
@@ -458,11 +488,12 @@ impl FukuraDaemon {
                                         drop(sessions);
                                         let wd_path = std::path::PathBuf::from(working_dir);
                                         let repo_clone = Arc::new(
-                                            FukuraRepo::discover(Some(&wd_path))
-                                                .unwrap_or_else(|_| {
+                                            FukuraRepo::discover(Some(&wd_path)).unwrap_or_else(
+                                                |_| {
                                                     FukuraRepo::discover(None)
                                                         .expect("Failed to discover repo")
-                                                }),
+                                                },
+                                            ),
                                         );
 
                                         let note = Note {
@@ -492,24 +523,43 @@ impl FukuraDaemon {
                                         };
 
                                         if let Ok(record) = repo_clone.store_note(note) {
-                                            tracing::info!("Note created: {} for error: {}", &record.object_id[..8], command);
-                                            
+                                            tracing::info!(
+                                                "Note created: {} for error: {}",
+                                                &record.object_id[..8],
+                                                command
+                                            );
+
                                             // WORLD-CLASS: Search for similar errors and solutions
-                                            let similar_solutions = Self::find_similar_solutions(&repo_clone, command, exit_code);
-                                            
+                                            let similar_solutions = Self::find_similar_solutions(
+                                                &repo_clone,
+                                                command,
+                                                exit_code,
+                                            );
+
                                             // Send intelligent notification
                                             if let Some(ref nm) = notif_mgr {
-                                                tracing::info!("Sending notification for error: {}", command);
+                                                tracing::info!(
+                                                    "Sending notification for error: {}",
+                                                    command
+                                                );
                                                 if let Ok(solutions) = similar_solutions {
                                                     if !solutions.is_empty() {
-                                                        tracing::info!("Found {} solutions", solutions.len());
-                                                        if let Err(e) = nm.notify_error_with_solutions(
-                                                            command,
-                                                            &error_message,
-                                                            &record.object_id,
-                                                            &solutions,
-                                                        ) {
-                                                            tracing::error!("Notification failed: {}", e);
+                                                        tracing::info!(
+                                                            "Found {} solutions",
+                                                            solutions.len()
+                                                        );
+                                                        if let Err(e) = nm
+                                                            .notify_error_with_solutions(
+                                                                command,
+                                                                &error_message,
+                                                                &record.object_id,
+                                                                &solutions,
+                                                            )
+                                                        {
+                                                            tracing::error!(
+                                                                "Notification failed: {}",
+                                                                e
+                                                            );
                                                         } else {
                                                             tracing::info!("Notification sent successfully with solutions");
                                                         }
@@ -519,9 +569,14 @@ impl FukuraDaemon {
                                                             &error_message,
                                                             &record.object_id,
                                                         ) {
-                                                            tracing::error!("Notification failed: {}", e);
+                                                            tracing::error!(
+                                                                "Notification failed: {}",
+                                                                e
+                                                            );
                                                         } else {
-                                                            tracing::info!("Notification sent successfully");
+                                                            tracing::info!(
+                                                                "Notification sent successfully"
+                                                            );
                                                         }
                                                     }
                                                 } else {
@@ -530,13 +585,20 @@ impl FukuraDaemon {
                                                         &error_message,
                                                         &record.object_id,
                                                     ) {
-                                                        tracing::error!("Notification failed: {}", e);
+                                                        tracing::error!(
+                                                            "Notification failed: {}",
+                                                            e
+                                                        );
                                                     } else {
-                                                        tracing::info!("Notification sent successfully");
+                                                        tracing::info!(
+                                                            "Notification sent successfully"
+                                                        );
                                                     }
                                                 }
                                             } else {
-                                                tracing::warn!("Notification manager not available");
+                                                tracing::warn!(
+                                                    "Notification manager not available"
+                                                );
                                             }
                                         }
                                     }
@@ -1016,10 +1078,14 @@ impl FukuraDaemon {
     }
 
     /// Find similar solutions for an error (WORLD-CLASS)
-    fn find_similar_solutions(repo: &Arc<FukuraRepo>, command: &str, _exit_code: i32) -> Result<Vec<SolutionHit>> {
+    fn find_similar_solutions(
+        repo: &Arc<FukuraRepo>,
+        command: &str,
+        _exit_code: i32,
+    ) -> Result<Vec<SolutionHit>> {
         // Search for similar commands in past notes
         let query = Self::extract_search_terms(command);
-        
+
         match repo.search(&query, 10, crate::index::SearchSort::Relevance) {
             Ok(hits) => {
                 let mut solutions = Vec::new();
@@ -1033,13 +1099,13 @@ impl FukuraDaemon {
                             || record.note.body.to_lowercase().contains("fix:")
                             || record.note.body.to_lowercase().contains("resolved")
                             || !record.note.solutions.is_empty();
-                        
+
                         if has_solution {
                             solutions.push(SolutionHit {
                                 note_id: record.object_id.clone(),
                                 title: record.note.title.clone(),
                                 snippet: Self::extract_solution_snippet(&record.note.body),
-                                confidence: hit.likes as f64 / 10.0,  // Use likes as confidence indicator
+                                confidence: hit.likes as f64 / 10.0, // Use likes as confidence indicator
                             });
                         }
                     }
@@ -1056,7 +1122,7 @@ impl FukuraDaemon {
         let words: Vec<&str> = command
             .split_whitespace()
             .filter(|w| !noise_words.contains(w) && !w.starts_with('-'))
-            .take(3)  // Use first 3 meaningful words
+            .take(3) // Use first 3 meaningful words
             .collect();
         words.join(" ")
     }
@@ -1074,7 +1140,7 @@ impl FukuraDaemon {
                 return snippet[..snippet.len().min(200)].trim().to_string();
             }
         }
-        
+
         // Fallback: first 150 chars
         body.chars().take(150).collect()
     }
