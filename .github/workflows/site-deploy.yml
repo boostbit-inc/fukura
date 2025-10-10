@@ -17,6 +17,8 @@ on:
       - '.github/workflows/site-deploy.yml'
   repository_dispatch:
     types: [release]
+  release:
+    types: [published]
 
 jobs:
   dispatch:
@@ -32,7 +34,13 @@ jobs:
           fi
           
           # Determine event type and payload based on trigger
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "release" ]; then
+            EVENT_TYPE="release"
+            VERSION="${{ github.event.release.tag_name }}"
+            TAG="${{ github.event.release.tag_name }}"
+            echo "Triggered by release published: $VERSION"
+            PAYLOAD='{"event_type":"release","client_payload":{"source":"boostbit-inc/fukura","version":"'$VERSION'","tag":"'$TAG'","release_url":"${{ github.event.release.html_url }}","published_at":"${{ github.event.release.published_at }}"}}'
+          elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             EVENT_TYPE="release"
             VERSION="${{ github.event.client_payload.version }}"
             TAG="${{ github.event.client_payload.tag }}"
