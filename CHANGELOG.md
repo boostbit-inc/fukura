@@ -5,6 +5,27 @@ All notable changes to Fukura will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2025-10-10
+
+### Added
+- Simple daemon commands following systemctl/Docker best practices:
+  * `fuku start` - Start daemon
+  * `fuku stop` - Stop daemon
+  * `fuku status` - Check status
+  * `fuku restart` - Restart daemon
+- Comprehensive help messages for all commands
+- fuku init can be run multiple times safely (no error)
+
+### Changed
+- Improved UX: daemon commands now use simple verbs instead of flags
+- `fuku daemon` reserved for advanced options (hooks, notifications, testing)
+- Fixed fukura-site deployment trigger (now triggers on release published)
+
+### Fixed
+- fuku init no longer shows error when repository is already initialized
+- All command help messages now show descriptive information
+- site-deploy.yml now correctly triggers on new releases
+
 ## [0.3.3] - 2025-10-10
 
 ### Added

@@ -57,8 +57,9 @@ impl NotificationManager {
 
         let summary = "Fukura: Error Detected";
         let body = format!(
-            "Command failed: {}\n\nClick to view details",
-            Self::truncate(command, 50)
+            "Command failed: {}\n\n{}\n\nClick to view details",
+            Self::truncate(command, 50),
+            Self::truncate(error_message, 100)
         );
 
         #[cfg(target_os = "macos")]
