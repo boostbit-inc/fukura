@@ -980,47 +980,42 @@ async fn handle_sync(cli: &Cli, cmd: &SyncCommand) -> Result<()> {
         return Ok(());
     }
 
-    // Sync all private notes
-    if cmd.all {
-        if !cli.quiet {
-            println!("{} Syncing all private notes...", "".blue());
-        }
+    // Sync all private notes (default behavior or explicit --all)
+    if !cli.quiet {
+        println!("{} Syncing all private notes...", "".blue());
+    }
 
-        // Get all notes and filter private ones
-        let all_notes = repo.list_all_notes()?;
-        let mut synced_count = 0;
+    // Get all notes and filter private ones
+    let all_notes = repo.list_all_notes()?;
+    let mut synced_count = 0;
 
-        for note_record in all_notes {
-            if note_record.note.privacy == Privacy::Private {
-                match push_note(&repo, &note_record.object_id, &remote).await {
-                    Ok(_) => {
-                        synced_count += 1;
-                        if !cli.quiet {
-                            println!("{} Synced: {}", "  [OK]".green(), note_record.note.title);
-                        }
+    for note_record in all_notes {
+        if note_record.note.privacy == Privacy::Private {
+            match push_note(&repo, &note_record.object_id, &remote).await {
+                Ok(_) => {
+                    synced_count += 1;
+                    if !cli.quiet {
+                        println!("{} Synced: {}", "  [OK]".green(), note_record.note.title);
                     }
-                    Err(e) => {
-                        if !cli.quiet {
-                            println!(
-                                "{} Failed to sync {}: {}",
-                                "  [FAIL]".red(),
-                                note_record.note.title,
-                                e
-                            );
-                        }
+                }
+                Err(e) => {
+                    if !cli.quiet {
+                        println!(
+                            "{} Failed to sync {}: {}",
+                            "  [FAIL]".red(),
+                            note_record.note.title,
+                            e
+                        );
                     }
                 }
             }
         }
-
-        if !cli.quiet {
-            println!("{} Synced {} notes", "".green(), synced_count);
-        }
-        return Ok(());
     }
 
-    // No ID and no --all flag
-    bail!("Please specify a note ID or use --all to sync all notes");
+    if !cli.quiet {
+        println!("{} Synced {} notes", "".green(), synced_count);
+    }
+    Ok(())
 }
 
 fn handle_config(cli: &Cli, cmd: &ConfigCommand) -> Result<()> {
