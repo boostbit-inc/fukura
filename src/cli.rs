@@ -61,51 +61,65 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     /// Initialize a new repository
+    #[command(about = "Initialize a new Fukura repository in the current or specified directory")]
     Init(InitCommand),
 
     /// Add a new note
+    #[command(about = "Add a new note with title, body, tags, and metadata")]
     Add(AddCommand),
 
     /// Search notes
+    #[command(about = "Search notes by keywords with filters and sorting options")]
     Search(SearchCommand),
 
     /// View a note
+    #[command(about = "View a note's full content by ID or special ref (@latest, @1, etc.)")]
     View(ViewCommand),
 
     /// Open note in browser
+    #[command(about = "Open a note in your web browser with beautiful HTML rendering")]
     Open(OpenCommand),
 
     /// Start local web server
+    #[command(about = "Start a local HTTP server to browse and manage notes via API")]
     Serve(ServeCommand),
 
     /// Optimize storage (garbage collection)
+    #[command(about = "Pack loose objects to optimize storage and improve performance")]
     Gc(GcCommand),
 
     /// Push notes to remote
+    #[command(about = "Push a specific note to remote server (one-way upload)")]
     Push(PushCommand),
 
     /// Pull notes from remote
+    #[command(about = "Pull a note from remote server by ID")]
     Pull(PullCommand),
 
     /// Sync notes with remote
+    #[command(about = "Sync notes bidirectionally or manage auto-sync settings")]
     Sync(SyncCommand),
 
     /// Manage configuration
+    #[command(about = "Manage configuration settings (remote URL, redaction rules)")]
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
     },
 
     /// Start error capture daemon
-    #[command(name = "start", about = "Start the error capture daemon")]
+    #[command(name = "start", about = "Start the error capture daemon in background")]
     Start,
 
     /// Stop error capture daemon  
-    #[command(name = "stop", about = "Stop the error capture daemon")]
+    #[command(name = "stop", about = "Stop the running error capture daemon")]
     Stop,
 
     /// Check daemon status
-    #[command(name = "status", about = "Check daemon status and configuration")]
+    #[command(
+        name = "status",
+        about = "Check daemon status, hooks, and notification settings"
+    )]
     Status,
 
     /// Restart daemon
@@ -113,7 +127,10 @@ pub enum Commands {
     Restart,
 
     /// Manage daemon (advanced options)
-    #[command(name = "daemon", about = "Advanced daemon management (hooks, notifications, testing)")]
+    #[command(
+        name = "daemon",
+        about = "Advanced daemon management (hooks, notifications, foreground mode)"
+    )]
     Daemon(DaemonCommand),
 }
 
@@ -1969,18 +1986,42 @@ async fn handle_status(cli: &Cli) -> Result<()> {
     if !cli.quiet {
         if daemon_service.is_running().await {
             println!("{} Daemon: {}", "".blue(), "Running".green());
-            
+
             let hook_manager = crate::hooks::HookManager::new(repo.root());
             let hooks_installed = hook_manager.are_hooks_installed().unwrap_or(false);
-            println!("{} Hooks: {}", "".blue(), if hooks_installed { "Installed".green() } else { "Not installed".red() });
-            
+            println!(
+                "{} Hooks: {}",
+                "".blue(),
+                if hooks_installed {
+                    "Installed".green()
+                } else {
+                    "Not installed".red()
+                }
+            );
+
             let notif_mgr = crate::notification::NotificationManager::new(repo.root())?;
-            println!("{} Notifications: {}", "".blue(), if notif_mgr.is_enabled() { "Enabled".green() } else { "Disabled".red() });
-            
+            println!(
+                "{} Notifications: {}",
+                "".blue(),
+                if notif_mgr.is_enabled() {
+                    "Enabled".green()
+                } else {
+                    "Disabled".red()
+                }
+            );
+
             if let Some(remote) = &config.default_remote {
                 println!("{} Remote: {}", "".blue(), remote);
             }
-            println!("{} Auto-sync: {}", "".blue(), if config.auto_sync.unwrap_or(false) { "Enabled".green() } else { "Disabled".red() });
+            println!(
+                "{} Auto-sync: {}",
+                "".blue(),
+                if config.auto_sync.unwrap_or(false) {
+                    "Enabled".green()
+                } else {
+                    "Disabled".red()
+                }
+            );
         } else {
             println!("{} Daemon: {}", "".blue(), "Stopped".red());
             println!("{} Run 'fuku start' to begin monitoring", "".cyan());

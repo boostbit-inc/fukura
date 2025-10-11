@@ -353,28 +353,13 @@ impl FukuraDaemon {
                                                                 } else {
                                                                     tracing::info!("Notification sent successfully with solutions");
                                                                 }
-                                                            } else {
-                                                                if let Err(e) = nm
-                                                                    .notify_error_with_id(
-                                                                        command,
-                                                                        &error_message,
-                                                                        &record.object_id,
-                                                                    )
-                                                                {
-                                                                    tracing::error!(
-                                                                        "Notification failed: {}",
-                                                                        e
-                                                                    );
-                                                                } else {
-                                                                    tracing::info!("Notification sent successfully");
-                                                                }
-                                                            }
-                                                        } else {
-                                                            if let Err(e) = nm.notify_error_with_id(
-                                                                command,
-                                                                &error_message,
-                                                                &record.object_id,
-                                                            ) {
+                                                            } else if let Err(e) = nm
+                                                                .notify_error_with_id(
+                                                                    command,
+                                                                    &error_message,
+                                                                    &record.object_id,
+                                                                )
+                                                            {
                                                                 tracing::error!(
                                                                     "Notification failed: {}",
                                                                     e
@@ -382,6 +367,21 @@ impl FukuraDaemon {
                                                             } else {
                                                                 tracing::info!("Notification sent successfully");
                                                             }
+                                                        } else if let Err(e) = nm
+                                                            .notify_error_with_id(
+                                                                command,
+                                                                &error_message,
+                                                                &record.object_id,
+                                                            )
+                                                        {
+                                                            tracing::error!(
+                                                                "Notification failed: {}",
+                                                                e
+                                                            );
+                                                        } else {
+                                                            tracing::info!(
+                                                                "Notification sent successfully"
+                                                            );
                                                         }
                                                     } else {
                                                         tracing::warn!(
@@ -563,24 +563,7 @@ impl FukuraDaemon {
                                                         } else {
                                                             tracing::info!("Notification sent successfully with solutions");
                                                         }
-                                                    } else {
-                                                        if let Err(e) = nm.notify_error_with_id(
-                                                            command,
-                                                            &error_message,
-                                                            &record.object_id,
-                                                        ) {
-                                                            tracing::error!(
-                                                                "Notification failed: {}",
-                                                                e
-                                                            );
-                                                        } else {
-                                                            tracing::info!(
-                                                                "Notification sent successfully"
-                                                            );
-                                                        }
-                                                    }
-                                                } else {
-                                                    if let Err(e) = nm.notify_error_with_id(
+                                                    } else if let Err(e) = nm.notify_error_with_id(
                                                         command,
                                                         &error_message,
                                                         &record.object_id,
@@ -594,6 +577,16 @@ impl FukuraDaemon {
                                                             "Notification sent successfully"
                                                         );
                                                     }
+                                                } else if let Err(e) = nm.notify_error_with_id(
+                                                    command,
+                                                    &error_message,
+                                                    &record.object_id,
+                                                ) {
+                                                    tracing::error!("Notification failed: {}", e);
+                                                } else {
+                                                    tracing::info!(
+                                                        "Notification sent successfully"
+                                                    );
                                                 }
                                             } else {
                                                 tracing::warn!(
