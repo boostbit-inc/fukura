@@ -429,11 +429,13 @@ mod tests {
         let manager = HookManager::new(temp_dir.path());
 
         let bash_hook = manager.generate_bash_hook();
-        assert!(bash_hook.contains("fukura daemon"));
+        // Check that hook uses IPC (Unix socket)
+        assert!(bash_hook.contains("nc -U"));
         assert!(bash_hook.contains("bash"));
 
         let zsh_hook = manager.generate_zsh_hook();
-        assert!(zsh_hook.contains("fukura daemon"));
+        // Check that hook uses IPC (Unix socket)
+        assert!(zsh_hook.contains("nc -U"));
         assert!(zsh_hook.contains("zsh"));
     }
 }
