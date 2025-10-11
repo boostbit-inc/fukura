@@ -52,6 +52,8 @@ pub struct ActiveSession {
     pub commands: Vec<CommandEntry>,
     pub errors: Vec<ErrorEntry>,
     pub context: SessionContext,
+    pub last_error_command: Option<String>, // Track which command caused the last error
+    pub resolution_in_progress: bool,       // Track if we're in error→resolution flow
 }
 
 #[derive(Debug, Clone)]
@@ -247,6 +249,8 @@ impl FukuraDaemon {
                                                         git_status: None,
                                                         environment: HashMap::new(),
                                                     },
+                                                    last_error_command: None,
+                                                    resolution_in_progress: false,
                                                 },
                                             );
                                         }
@@ -460,6 +464,8 @@ impl FukuraDaemon {
                                                 git_status: None,
                                                 environment: HashMap::new(),
                                             },
+                                            last_error_command: None,
+                                            resolution_in_progress: false,
                                         },
                                     );
                                 }
@@ -646,6 +652,8 @@ impl FukuraDaemon {
                         git_status: self.get_git_status(working_dir).await.ok(),
                         environment: self.get_environment_context().await,
                     },
+                    last_error_command: None,
+                    resolution_in_progress: false,
                 },
             );
         }
@@ -659,10 +667,32 @@ impl FukuraDaemon {
             });
             session.last_activity = SystemTime::now();
 
-            // Check if this looks like an error
+            // INSTANT RESOLUTION DETECTION
             if let Some(code) = exit_code {
                 if code != 0 {
+                    // Error - start tracking
+                    session.last_error_command = Some(command.to_string());
+                    session.resolution_in_progress = true;
                     self.analyze_command_error(session, command, code).await;
+                } else if session.resolution_in_progress {
+                    // Success after error - INSTANT note creation!
+                    let session_clone = session.clone();
+                    drop(sessions);
+                    
+                    // Create resolution note immediately
+                    tokio::spawn(async move {
+                        if let Err(e) = Self::create_instant_resolution_note(session_clone).await {
+                            tracing::error!("Failed to create resolution note: {}", e);
+                        }
+                    });
+                    
+                    // Reset tracking
+                    let mut sessions = self.sessions.write().await;
+                    if let Some(s) = sessions.get_mut(session_id) {
+                        s.resolution_in_progress = false;
+                        s.last_error_command = None;
+                    }
+                    return Ok(());
                 }
             }
         }
@@ -751,6 +781,8 @@ impl FukuraDaemon {
                 git_status: self.get_git_status(working_dir).await.ok(),
                 environment: self.get_environment_context().await,
             },
+            last_error_command: None,
+            resolution_in_progress: false,
         };
 
         self.sessions
@@ -1066,6 +1098,123 @@ impl FukuraDaemon {
                         info!("Auto-generated note for session {}", session_id);
                     }
                 }
+            }
+        }
+    }
+
+    /// Create instant resolution note when error is solved (WORLD-CLASS)
+    async fn create_instant_resolution_note(session: ActiveSession) -> Result<()> {
+        // Discover repo
+        let repo = match FukuraRepo::discover(Some(std::path::Path::new(&session.context.working_directory))) {
+            Ok(r) => r,
+            Err(_) => return Ok(()),
+        };
+        
+        // Get recent commands (last 10 or until error)
+        let recent_commands: Vec<_> = session.commands.iter().rev().take(10).collect();
+        
+        // Find error commands and solution commands
+        let mut error_cmd = None;
+        let mut solution_steps = Vec::new();
+        
+        for cmd in recent_commands.iter().rev() {
+            if let Some(code) = cmd.exit_code {
+                if code != 0 && error_cmd.is_none() {
+                    error_cmd = Some(cmd);
+                } else if code == 0 && error_cmd.is_some() {
+                    solution_steps.push(cmd);
+                }
+            }
+        }
+        
+        let error = match error_cmd {
+            Some(e) => e,
+            None => return Ok(()), // No error found
+        };
+        
+        // Generate title
+        let title = format!("Solved: {}", error.command);
+        
+        // Generate body
+        let mut body = String::new();
+        body.push_str("## 🎯 Problem Solved\n\n");
+        body.push_str("### ❌ Error Encountered\n\n");
+        body.push_str(&format!("```bash\n$ {}\n```\n", error.command));
+        body.push_str(&format!("Exit code: {}\n\n", error.exit_code.unwrap_or(1)));
+        
+        if !solution_steps.is_empty() {
+            body.push_str("### ✅ Solution Steps (Auto-detected)\n\n");
+            for (idx, cmd) in solution_steps.iter().enumerate() {
+                body.push_str(&format!("{}. `{}`\n", idx + 1, cmd.command));
+            }
+            body.push_str("\n");
+        }
+        
+        body.push_str("### 📋 Recent Command History\n\n");
+        for cmd in recent_commands.iter().rev() {
+            let status = match cmd.exit_code {
+                Some(0) => "✅",
+                Some(_) => "❌",
+                None => "⏳",
+            };
+            body.push_str(&format!("{} `{}`\n", status, cmd.command));
+        }
+        
+        if let Some(ref branch) = session.context.git_branch {
+            body.push_str(&format!("\n**Git Branch**: `{}`\n", branch));
+        }
+        
+        // Extract tags
+        let mut tags = vec!["auto-solved".to_string(), "resolution".to_string()];
+        let cmd_lower = error.command.to_lowercase();
+        if cmd_lower.contains("cargo") || cmd_lower.contains("rust") { tags.push("rust".to_string()); }
+        if cmd_lower.contains("npm") || cmd_lower.contains("node") { tags.push("nodejs".to_string()); }
+        if cmd_lower.contains("docker") { tags.push("docker".to_string()); }
+        if cmd_lower.contains("git") { tags.push("git".to_string()); }
+        if cmd_lower.contains("python") || cmd_lower.contains("pip") { tags.push("python".to_string()); }
+        tags.sort();
+        tags.dedup();
+        
+        let note = Note {
+            title: title.clone(),
+            body,
+            tags,
+            links: vec![],
+            meta: std::collections::BTreeMap::from([
+                ("auto-resolution".to_string(), "true".to_string()),
+                ("error_command".to_string(), error.command.clone()),
+                ("solution_steps".to_string(), solution_steps.len().to_string()),
+            ]),
+            solutions: vec![],
+            privacy: Privacy::Private,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            author: Author {
+                name: std::env::var("USER").unwrap_or_else(|_| "auto".to_string()),
+                email: None,
+            },
+        };
+        
+        match repo.store_note(note) {
+            Ok(record) => {
+                tracing::info!("✨ Auto-resolution note created: {} ({})", title, &record.object_id[..8]);
+                
+                // Send success notification
+                if let Ok(notif) = NotificationManager::new(repo.root()) {
+                    let summary = "Fukura: Problem Solved! 🎉";
+                    let body_text = format!(
+                        "Error: {}\n\nSolved with {} step(s)\n\nView: fuku view @latest",
+                        error.command,
+                        solution_steps.len()
+                    );
+                    let _ = notif.notify_solution_found(&body_text, solution_steps.len());
+                }
+                
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!("Failed to create resolution note: {}", e);
+                Err(e)
             }
         }
     }
