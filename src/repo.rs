@@ -405,12 +405,16 @@ impl FukuraRepo {
                 matches.dedup();
             }
         }
-        ensure!(!matches.is_empty(), "No object matching '{}'", candidate);
+        ensure!(
+            !matches.is_empty(), 
+            "No object matching '{}'\n💡 Tip: Use 'fuku search' to list available notes, or '@latest' for the most recent", 
+            candidate
+        );
         ensure!(
             matches.len() == 1,
-            "Ambiguous id '{}': choose from {:?}",
+            "Ambiguous id '{}' matches multiple notes: {}\n💡 Tip: Use more characters to uniquely identify the note",
             candidate,
-            matches
+            matches.iter().take(3).map(|s| &s[..8.min(s.len())]).collect::<Vec<_>>().join(", ")
         );
         Ok(matches.remove(0))
     }
