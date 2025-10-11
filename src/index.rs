@@ -23,7 +23,7 @@ pub enum SearchSort {
     Likes,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchHit {
     pub object_id: String,
     pub title: String,

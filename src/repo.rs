@@ -197,7 +197,30 @@ impl FukuraRepo {
 
     pub fn search(&self, query: &str, limit: usize, sort: SearchSort) -> Result<Vec<SearchHit>> {
         let index = SearchIndex::open_or_create(self)?;
-        index.search(query, limit, sort)
+        let hits = index.search(query, limit, sort)?;
+        // Cache search results for @N references
+        self.save_search_cache(&hits)?;
+        Ok(hits)
+    }
+
+    fn search_cache_path(&self) -> PathBuf {
+        self.dot_dir.join("last_search.json")
+    }
+
+    fn save_search_cache(&self, hits: &[SearchHit]) -> Result<()> {
+        let json = serde_json::to_string_pretty(hits)?;
+        fs::write(self.search_cache_path(), json)?;
+        Ok(())
+    }
+
+    pub fn load_search_cache(&self) -> Result<Vec<SearchHit>> {
+        let path = self.search_cache_path();
+        if !path.exists() {
+            bail!("No recent search results. Run 'fuku search' first.");
+        }
+        let content = fs::read_to_string(path)?;
+        let hits: Vec<SearchHit> = serde_json::from_str(&content)?;
+        Ok(hits)
     }
 
     pub fn pack_loose_objects(&self, prune: bool) -> Result<PackReport> {
@@ -301,16 +324,18 @@ impl FukuraRepo {
                 .context("No notes found. Use @latest after creating notes.");
         }
 
-        // Handle @N shorthand (search result index)
+        // Handle @N shorthand (search result index from last search)
         if let Some(stripped) = candidate.strip_prefix('@') {
             if let Ok(index) = stripped.parse::<usize>() {
-                let hits = self.search("", 20, SearchSort::Updated)?;
+                let hits = self.load_search_cache()
+                    .context("No recent search results. Run 'fuku search' first to use @N references.")?;
                 if index > 0 && index <= hits.len() {
                     return Ok(hits[index - 1].object_id.clone());
                 }
                 bail!(
-                    "@{} is out of range. Use search to see available notes.",
-                    index
+                    "@{} is out of range (last search had {} results)",
+                    index,
+                    hits.len()
                 );
             }
         }
