@@ -115,6 +115,10 @@ pub enum Commands {
     #[command(about = "Setup convenient shell aliases for fuku commands")]
     Alias(AliasCommand),
 
+    /// Import notes from files
+    #[command(about = "Import notes from markdown files or directories")]
+    Import(ImportCommand),
+
     /// Optimize storage (garbage collection)
     #[command(about = "Pack loose objects to optimize storage and improve performance")]
     Gc(GcCommand),
@@ -363,6 +367,18 @@ pub struct AliasCommand {
 }
 
 #[derive(Debug, Args)]
+pub struct ImportCommand {
+    #[arg(value_name = "PATH", help = "File or directory to import from")]
+    path: PathBuf,
+    
+    #[arg(long, help = "Default tag to add to all imported notes")]
+    tag: Option<String>,
+    
+    #[arg(long, help = "Dry run - show what would be imported")]
+    dry_run: bool,
+}
+
+#[derive(Debug, Args)]
 pub struct GcCommand {
     #[arg(long, help = "Remove loose objects")]
     prune: bool,
@@ -504,6 +520,7 @@ pub async fn run() -> Result<()> {
         Commands::Stats => handle_stats(&cli)?,
         Commands::Completions(cmd) => handle_completions(&cli, cmd)?,
         Commands::Alias(cmd) => handle_alias(&cli, cmd)?,
+        Commands::Import(cmd) => handle_import(&cli, cmd).await?,
         Commands::Gc(cmd) => handle_gc(&cli, cmd)?,
         Commands::Push(cmd) => handle_push(&cli, cmd).await?,
         Commands::Pull(cmd) => handle_pull(&cli, cmd).await?,
@@ -1473,6 +1490,179 @@ fn handle_alias(cli: &Cli, cmd: &AliasCommand) -> Result<()> {
         println!("  fuku alias --show    # Show recommended aliases");
         println!("  fuku alias --setup   # Install aliases to shell rc file");
         println!("  fuku alias --remove  # Remove installed aliases");
+    }
+
+    Ok(())
+}
+
+async fn handle_import(cli: &Cli, cmd: &ImportCommand) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let config = repo.config()?;
+    
+    let mut files_to_import = Vec::new();
+    
+    if cmd.path.is_file() {
+        files_to_import.push(cmd.path.clone());
+    } else if cmd.path.is_dir() {
+        // Recursively find all markdown files
+        for entry in walkdir::WalkDir::new(&cmd.path)
+            .max_depth(10)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            if entry.file_type().is_file() {
+                if let Some(ext) = entry.path().extension() {
+                    if ext == "md" || ext == "markdown" || ext == "txt" {
+                        files_to_import.push(entry.path().to_path_buf());
+                    }
+                }
+            }
+        }
+    } else {
+        bail!("Path not found: {}", cmd.path.display());
+    }
+
+    if files_to_import.is_empty() {
+        if !cli.quiet {
+            println!("{} No markdown files found in {}", "ℹ️".blue(), cmd.path.display());
+        }
+        return Ok(());
+    }
+
+    if cmd.dry_run {
+        if !cli.quiet {
+            println!("{} Dry run - would import {} files:", "🔍".cyan(), files_to_import.len());
+            println!();
+            for file in &files_to_import {
+                println!("  📄 {}", file.display());
+            }
+        }
+        return Ok(());
+    }
+
+    if !cli.quiet {
+        println!("{} Importing {} files...", "📥".blue(), files_to_import.len());
+        println!();
+    }
+
+    let mut imported_count = 0;
+    let mut skipped_count = 0;
+    let mut error_count = 0;
+
+    for file in &files_to_import {
+        let content = match fs::read_to_string(file) {
+            Ok(c) => c,
+            Err(e) => {
+                if !cli.quiet {
+                    println!("{} Skipped {}: {}", "⏭️".yellow(), file.display(), e);
+                }
+                skipped_count += 1;
+                continue;
+            }
+        };
+
+        // Parse markdown - extract title from first heading or filename
+        let lines: Vec<&str> = content.lines().collect();
+        let title = lines
+            .iter()
+            .find(|line| line.starts_with("# "))
+            .map(|line| line.trim_start_matches("# ").trim().to_string())
+            .or_else(|| {
+                file.file_stem()
+                    .and_then(|s| s.to_str())
+                    .map(|s| s.to_string())
+            })
+            .unwrap_or_else(|| "Imported Note".to_string());
+
+        // Remove title from body if it exists
+        let body = if lines.first().map(|l| l.starts_with("# ")).unwrap_or(false) {
+            lines[1..].join("\n").trim().to_string()
+        } else {
+            content.trim().to_string()
+        };
+
+        if body.is_empty() {
+            if !cli.quiet {
+                println!("{} Skipped {} (empty)", "⏭️".yellow(), file.display());
+            }
+            skipped_count += 1;
+            continue;
+        }
+
+        // Extract tags from content (e.g., #tag)
+        let mut tags = Vec::new();
+        if let Some(default_tag) = &cmd.tag {
+            tags.push(default_tag.clone());
+        }
+        
+        // Look for tags in format #tag or tags: tag1, tag2
+        for line in lines.iter() {
+            if line.to_lowercase().starts_with("tags:") || line.to_lowercase().starts_with("labels:") {
+                let tag_str = line.split(':').nth(1).unwrap_or("");
+                for tag in tag_str.split(',') {
+                    let cleaned = tag.trim().trim_matches('#').to_lowercase();
+                    if !cleaned.is_empty() && !tags.contains(&cleaned) {
+                        tags.push(cleaned);
+                    }
+                }
+            }
+        }
+
+        let now = chrono::Utc::now();
+        let author = resolve_author(None, None);
+
+        let note = Note {
+            title: title.clone(),
+            body,
+            tags: normalize_tags(tags),
+            links: vec![],
+            meta: BTreeMap::new(),
+            solutions: vec![],
+            privacy: Privacy::Private,
+            created_at: now,
+            updated_at: now,
+            author,
+        };
+
+        match repo.store_note(note) {
+            Ok(record) => {
+                imported_count += 1;
+                if !cli.quiet {
+                    let short_id = format_object_id(&record.object_id);
+                    println!("  {} Imported: {} ({})", "✓".green(), title, short_id);
+                }
+                
+                // Auto-sync if enabled
+                if config.auto_sync.unwrap_or(false) {
+                    if let Some(remote) = &config.default_remote {
+                        let _ = push_note(&repo, &record.object_id, remote).await;
+                    }
+                }
+            }
+            Err(e) => {
+                if !cli.quiet {
+                    println!("  {} Failed: {} - {}", "✗".red(), title, e);
+                }
+                error_count += 1;
+            }
+        }
+    }
+
+    if !cli.quiet {
+        println!();
+        println!("{} Import complete!", "🎉".green());
+        println!();
+        println!("  {} Imported: {}", "✓".green(), imported_count);
+        if skipped_count > 0 {
+            println!("  {} Skipped: {}", "⏭️".yellow(), skipped_count);
+        }
+        if error_count > 0 {
+            println!("  {} Errors: {}", "✗".red(), error_count);
+        }
+        println!();
+        println!("💡 Next steps:");
+        println!("  fuku list        # View imported notes");
+        println!("  fuku stats       # Check repository stats");
     }
 
     Ok(())
