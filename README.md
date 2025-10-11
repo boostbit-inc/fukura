@@ -63,24 +63,42 @@ APT repository hosting is planned for future releases. Currently, please use dir
 
 ## 🚀 Quickstart
 
+### Super Fast Setup (New!)
+
+```bash
+fuku init                                # Interactive setup
+fuku completions zsh                     # Enable Tab completion (or bash/fish)
+fuku alias --setup                       # Install quick aliases
+source ~/.zshrc                          # Reload shell
+
+# Now use super-fast aliases:
+fa                                       # Quick add (fuku add -q)
+fl                                       # List all notes
+fs "docker"                              # Search
+fv @1                                    # View first result
+fe @1 --add-tag urgent                   # Edit and tag
+```
+
 ### Automatic Error Capture (Recommended)
 
 ```bash
-fukura init                              # Interactive setup with daemon & sync options
+fuku init                                # Interactive setup with daemon & sync options
 # Now just develop normally - Fukura automatically captures errors and solutions!
 
 # After 5 minutes of inactivity, sessions become auto-generated notes
-fukura search "cargo build error"        # Find auto-generated solutions
-fukura view <auto-note-id>               # View detailed error + solution notes
+fuku search "cargo build error"          # Find auto-generated solutions
+fuku view @1                             # View first result from search
+fuku open @1                             # Open in browser
 ```
 
 ### Manual Usage (Traditional)
 
 ```bash
-fukura init --no-daemon                  # Initialize without auto-daemon
-fukura add --title "Proxy deploy"        # capture a note (stdin/editor/file)
-fukura search "proxy timeout" --tui      # multi-pane TUI; Tab switches panes
-fukura open <id>                         # render as HTML in your browser
+fuku init --no-daemon                    # Initialize without auto-daemon
+fuku add -q                              # Quick add with prompts
+fuku add --title "Proxy deploy"          # Full add (stdin/editor/file)
+fuku search "proxy timeout" --tui        # multi-pane TUI; Tab switches panes
+fuku open @latest                        # render as HTML in your browser
 ```
 
 ### Syncing with Remote (Fukurahub)
@@ -139,20 +157,36 @@ This optimizes storage and improves search performance, similar to `git gc`.
 Fukura provides several shortcuts for improved usability:
 
 ```bash
+# Quick aliases (after 'fuku alias --setup')
+fa                                       # fuku add -q (quick add)
+fl                                       # fuku list
+fs "query"                               # fuku search "query"
+fv @1                                    # fuku view @1
+fe @1 --add-tag urgent                   # fuku edit @1 --add-tag urgent
+
 # Reference notes by shortcuts
 fuku view @latest                        # View the most recent note
-fuku view @1                             # View first note from search results
+fuku view @1                             # View first note from last search results
 fuku open @2                             # Open second note from search results
 
-# Short ID support
+# Short ID support (8 chars instead of 64)
 fuku view a664dd                         # Use first 6-8 chars instead of full hash
 fuku sync f2f85e                         # Works with all commands accepting IDs
+
+# Quick commands
+fuku list                                # List all notes (alias for search "")
+fuku stats                               # Show repository statistics
+fuku config show                         # Display current configuration
+fuku edit @latest --add-tag fix          # Edit and tag latest note
+
+# Batch operations
+fuku import ./old-notes/ --tag imported  # Import markdown files in bulk
 
 # Global configuration (applies to all projects)
 fuku config remote --set https://hub.example.com --global
 
 # View all notes across all projects
-fuku search "" --all-repos                # Search across all local repositories
+fuku search "" --all-repos               # Search across all local repositories
 ```
 
 **Important: Local vs Global**
@@ -160,6 +194,67 @@ fuku search "" --all-repos                # Search across all local repositories
 - Global config (`~/.fukura/config.toml`) provides default values (remote URL, auto-sync)
 - Notes are NOT stored globally - they remain in each project
 - `.fukura/` should stay in `.gitignore` (already configured)
+
+## ✨ New Features (v0.3.5+)
+
+### Shell Completions (Tab Completion!)
+```bash
+# Install completions for your shell
+fuku completions bash    # Bash
+fuku completions zsh     # Zsh
+fuku completions fish    # Fish
+fuku completions powershell --stdout >> $PROFILE  # PowerShell
+
+# After installation, Tab key autocompletes:
+fuku v<Tab>              # → view, completes to 'fuku view'
+fuku view @<Tab>         # → @latest, @1, @2...
+fuku edit @1 --add-<Tab> # → --add-tag
+```
+
+### Quick Aliases
+```bash
+# Setup convenient aliases
+fuku alias --setup
+
+# Use super-fast shortcuts
+fa       # Quick add with prompts
+fl       # List all notes
+fs       # Search
+fv       # View
+fe       # Edit
+fo       # Open in browser
+fst      # Stats
+fsy      # Sync
+
+# Example workflow
+fa                          # Add note interactively
+fs docker                   # Search
+fv @1                       # View first result
+fe @1 --add-tag production  # Edit and tag
+```
+
+### Batch Import
+```bash
+# Import existing markdown files
+fuku import ./my-old-notes/          # Import directory
+fuku import ./single-note.md         # Import single file
+fuku import ./docs/ --tag imported   # Add default tag
+fuku import ./work/ --dry-run        # Preview before importing
+```
+
+### Enhanced Commands
+```bash
+# New commands
+fuku list                    # List all notes (cleaner than search "")
+fuku stats                   # Repository statistics
+fuku config show             # View all configuration
+fuku edit @1 --add-tag fix   # Edit notes and manage tags
+
+# Improved features
+fuku add -q                  # Quick mode with interactive prompts
+fuku add -t "Title" -b "Body" # Short flags
+fuku sync                    # Syncs all notes by default (no --all needed)
+```
 
 ## Repository layout
 
@@ -217,6 +312,16 @@ Recent improvements include:
 - **Search Performance**: Unstable sorting for large result sets
 - **Daemon Efficiency**: Optimized session cleanup and directory monitoring
 
+**Benchmark Results (50 notes):**
+- Search: ~1.7ms average
+- Load note: ~42µs average
+- Store note: ~699ms (with fsync for data safety)
+
+Run benchmarks yourself:
+```bash
+cargo bench
+```
+
 ## 🛠️ Development
 
 ```bash
@@ -262,10 +367,52 @@ See [docs/security.md](docs/security.md) for detailed security information.
 
 ## Performance
 
-- **Fast Search**: Tantivy-based full-text search
+- **Fast Search**: Tantivy-based full-text search (~1.7ms for 50 notes)
 - **Efficient Storage**: Pack files reduce disk usage
 - **Optimized Indexing**: Incremental indexing for large repositories
 - **Low Memory**: Designed for resource-constrained environments
+- **Quick Load**: Note loading in ~42µs
+
+## 🎨 GUI Overlay: Technical Feasibility
+
+### Should We Add a GUI Overlay?
+
+**Current Implementation:**
+- ✅ OS-native notifications (macOS/Linux/Windows)
+- ✅ Error detection and solution suggestions
+- ✅ Beautiful HTML rendering in browser
+- ✅ Interactive TUI for search
+
+**Option: Rich GUI Overlay (Floating Window)**
+
+**How It Works:**
+1. **Using `egui`**: Immediate mode GUI framework
+   - Pure Rust, cross-platform
+   - Renders GUI in a separate window
+   - ~500-1000 lines of code
+   - Lightweight (~2MB binary increase)
+
+2. **Using `tauri`**: Web-based GUI
+   - HTML/CSS/JS frontend + Rust backend
+   - Native window with WebView
+   - ~2000-3000 lines of code
+   - Larger binary (~5-10MB increase)
+
+**Recommendation: Stick with Current Approach**
+
+**Why?**
+- ✅ Terminal-first design matches developer workflow
+- ✅ Notifications work great for passive monitoring
+- ✅ Browser rendering for detailed viewing
+- ✅ TUI for interactive search
+- ❌ GUI overlay would be intrusive
+- ❌ Adds complexity and maintenance burden
+- ❌ Not aligned with CLI philosophy
+
+**If You Really Want GUI:**
+- Use `fuku serve` + browser dashboard
+- Keep it as separate web UI project
+- Don't clutter the CLI with GUI dependencies
 
 ## Licenses
 
