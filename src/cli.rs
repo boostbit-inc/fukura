@@ -172,10 +172,10 @@ pub struct InitCommand {
 
 #[derive(Debug, Args)]
 pub struct AddCommand {
-    #[arg(long, value_name = "TEXT", help = "Note title")]
+    #[arg(long, short = 't', value_name = "TEXT", help = "Note title")]
     title: Option<String>,
 
-    #[arg(long, value_name = "TEXT", help = "Note content")]
+    #[arg(long, short = 'b', value_name = "TEXT", help = "Note content")]
     body: Option<String>,
 
     #[arg(long, value_name = "PATH", help = "Read from file")]
@@ -183,6 +183,9 @@ pub struct AddCommand {
 
     #[arg(long, help = "Read from stdin")]
     stdin: bool,
+
+    #[arg(long, short = 'q', help = "Quick mode: prompts for title and body interactively")]
+    quick: bool,
 
     #[arg(
         long = "tag",
@@ -570,6 +573,59 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
 async fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
     let repo = open_repo(cli)?;
     let now = chrono::Utc::now();
+    
+    // Quick mode: interactive prompts
+    if cmd.quick {
+        let title: String = Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("📝 Title")
+            .interact_text()?;
+        
+        let body: String = Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("📄 Body (short description)")
+            .interact_text()?;
+        
+        if title.trim().is_empty() {
+            bail!("Title cannot be empty");
+        }
+        if body.trim().is_empty() {
+            bail!("Body cannot be empty");
+        }
+        
+        let tags = normalize_tags(cmd.tags.clone());
+        let meta = parse_meta(cmd.meta.clone())?;
+        let author = resolve_author(cmd.author.as_deref(), cmd.email.as_deref());
+        
+        let note = Note {
+            title: title.trim().to_string(),
+            body: body.trim().to_string(),
+            tags,
+            links: cmd.links.clone(),
+            meta,
+            solutions: vec![],
+            privacy: cmd.privacy.clone(),
+            created_at: now,
+            updated_at: now,
+            author,
+        };
+        
+        let record = repo.store_note(note)?;
+        
+        if !cli.quiet {
+            let short_id = format_object_id(&record.object_id);
+            println!(
+                "{} Captured {} ({})",
+                "✓".green(),
+                record.note.title.bold(),
+                short_id
+            );
+            if !record.note.tags.is_empty() {
+                println!("  #{}", record.note.tags.join(" #"));
+            }
+            println!("💡 Quick view: fuku view @latest");
+        }
+        return Ok(());
+    }
+    
     let title = match &cmd.title {
         Some(t) => t.clone(),
         None => Input::with_theme(&ColorfulTheme::default())
@@ -880,7 +936,11 @@ fn handle_edit(cli: &Cli, cmd: &EditCommand) -> Result<()> {
 
     // Update title
     if let Some(new_title) = &cmd.title {
-        record.note.title = new_title.trim().to_string();
+        let trimmed = new_title.trim();
+        if trimmed.is_empty() {
+            bail!("Title cannot be empty. Use --title 'New Title' with actual content.");
+        }
+        record.note.title = trimmed.to_string();
         modified = true;
     }
 
@@ -1514,10 +1574,12 @@ fn resolve_author(name: Option<&str>, email: Option<&str>) -> Author {
 
 fn render_search_table(hits: &[SearchHit]) {
     if hits.is_empty() {
-        println!(
-            "{} No results found. Try broader search terms.",
-            "Info:".dimmed()
-        );
+        println!("{} No results found", "ℹ️".blue());
+        println!();
+        println!("💡 Suggestions:");
+        println!("  • Use broader search terms");
+        println!("  • Create your first note: fuku add --title 'My Note'");
+        println!("  • Check if any notes exist: fuku stats");
         return;
     }
     let mut table = Table::new();
