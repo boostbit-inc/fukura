@@ -1,6 +1,8 @@
 use anyhow::Result;
-use notify_rust::{Notification, Timeout};
 use std::path::{Path, PathBuf};
+
+#[cfg(not(target_os = "macos"))]
+use notify_rust::{Notification, Timeout};
 
 /// Notification preferences stored in config
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
