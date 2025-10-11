@@ -85,6 +85,10 @@ pub enum Commands {
     #[command(about = "View a note's full content by ID or special ref (@latest, @1, etc.)")]
     View(ViewCommand),
 
+    /// Edit a note
+    #[command(about = "Edit an existing note's content, tags, or metadata")]
+    Edit(EditCommand),
+
     /// Open note in browser
     #[command(about = "Open a note in your web browser with beautiful HTML rendering")]
     Open(OpenCommand),
@@ -241,6 +245,37 @@ pub struct ViewCommand {
 
     #[arg(long, help = "Output as JSON")]
     json: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct EditCommand {
+    #[arg(value_name = "ID", help = "Note ID or @latest/@1")]
+    id: String,
+
+    #[arg(long, value_name = "TEXT", help = "Update title")]
+    title: Option<String>,
+
+    #[arg(long, value_name = "TEXT", help = "Update body")]
+    body: Option<String>,
+
+    #[arg(
+        long = "add-tag",
+        value_name = "TAG",
+        action = ArgAction::Append,
+        help = "Add tag (can be used multiple times)"
+    )]
+    add_tags: Vec<String>,
+
+    #[arg(
+        long = "remove-tag",
+        value_name = "TAG",
+        action = ArgAction::Append,
+        help = "Remove tag (can be used multiple times)"
+    )]
+    remove_tags: Vec<String>,
+
+    #[arg(long, help = "Open in editor to edit body")]
+    editor: bool,
 }
 
 #[derive(Debug, Args)]
@@ -418,6 +453,7 @@ pub async fn run() -> Result<()> {
         Commands::Add(cmd) => handle_add(&cli, cmd).await?,
         Commands::Search(cmd) => handle_search(&cli, cmd)?,
         Commands::View(cmd) => handle_view(&cli, cmd)?,
+        Commands::Edit(cmd) => handle_edit(&cli, cmd)?,
         Commands::Open(cmd) => handle_open(&cli, cmd)?,
         Commands::Serve(cmd) => handle_serve(&cli, cmd).await?,
         Commands::Gc(cmd) => handle_gc(&cli, cmd)?,
@@ -825,6 +861,84 @@ fn handle_view(cli: &Cli, cmd: &ViewCommand) -> Result<()> {
     } else {
         render_note(&record);
     }
+    Ok(())
+}
+
+fn handle_edit(cli: &Cli, cmd: &EditCommand) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let resolved = repo.resolve_object_id(&cmd.id)?;
+    let mut record = repo.load_note(&resolved)?;
+    
+    let mut modified = false;
+
+    // Update title
+    if let Some(new_title) = &cmd.title {
+        record.note.title = new_title.trim().to_string();
+        modified = true;
+    }
+
+    // Update body
+    if let Some(new_body) = &cmd.body {
+        record.note.body = new_body.trim().to_string();
+        modified = true;
+    } else if cmd.editor {
+        // Open editor for body
+        if let Some(edited) = Editor::new().edit(&record.note.body)? {
+            record.note.body = edited.trim().to_string();
+            modified = true;
+        }
+    }
+
+    // Add tags
+    if !cmd.add_tags.is_empty() {
+        let normalized = normalize_tags(cmd.add_tags.clone());
+        for tag in normalized {
+            if !record.note.tags.contains(&tag) {
+                record.note.tags.push(tag);
+                modified = true;
+            }
+        }
+        record.note.tags.sort();
+    }
+
+    // Remove tags
+    if !cmd.remove_tags.is_empty() {
+        let normalized = normalize_tags(cmd.remove_tags.clone());
+        for tag in normalized {
+            if let Some(pos) = record.note.tags.iter().position(|t| t == &tag) {
+                record.note.tags.remove(pos);
+                modified = true;
+            }
+        }
+    }
+
+    if !modified {
+        if !cli.quiet {
+            println!("{} No changes made", "ℹ️".blue());
+            println!("💡 Use --title, --body, --add-tag, --remove-tag, or --editor to make changes");
+        }
+        return Ok(());
+    }
+
+    // Update timestamp
+    record.note.updated_at = chrono::Utc::now();
+
+    // Store updated note
+    let new_record = repo.store_note(record.note)?;
+
+    if !cli.quiet {
+        let short_id = format_object_id(&new_record.object_id);
+        println!(
+            "{} Updated note {} ({})",
+            "✓".green(),
+            new_record.note.title.bold(),
+            short_id
+        );
+        if !new_record.note.tags.is_empty() {
+            println!("  #{}", new_record.note.tags.join(" #"));
+        }
+    }
+
     Ok(())
 }
 
