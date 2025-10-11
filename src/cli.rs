@@ -81,6 +81,10 @@ pub enum Commands {
     #[command(about = "Search notes by keywords with filters and sorting options")]
     Search(SearchCommand),
 
+    /// List all notes (alias for search)
+    #[command(about = "List all notes (same as 'search \"\"')")]
+    List,
+
     /// View a note
     #[command(about = "View a note's full content by ID or special ref (@latest, @1, etc.)")]
     View(ViewCommand),
@@ -461,6 +465,7 @@ pub async fn run() -> Result<()> {
         Commands::Init(cmd) => handle_init(&cli, cmd)?,
         Commands::Add(cmd) => handle_add(&cli, cmd).await?,
         Commands::Search(cmd) => handle_search(&cli, cmd)?,
+        Commands::List => handle_list(&cli)?,
         Commands::View(cmd) => handle_view(&cli, cmd)?,
         Commands::Edit(cmd) => handle_edit(&cli, cmd)?,
         Commands::Open(cmd) => handle_open(&cli, cmd)?,
@@ -762,6 +767,34 @@ fn handle_search(cli: &Cli, cmd: &SearchCommand) -> Result<()> {
         println!(
             "💡 Next: fuku view @1 (or fuku open @1 to open in browser)"
         );
+        println!("   Copy ID: {}", short_id);
+    }
+    Ok(())
+}
+
+fn handle_list(cli: &Cli) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let hits = repo.search("", 100, SearchSort::Updated)?;
+    
+    if hits.is_empty() {
+        println!("{} No notes yet", "ℹ️".blue());
+        println!();
+        println!("💡 Get started:");
+        println!("  • Quick add: fuku add -q");
+        println!("  • Full add:  fuku add --title 'My Note' --body 'Content'");
+        return Ok(());
+    }
+    
+    println!("{} All Notes ({} total)", "📋".cyan(), hits.len());
+    println!();
+    render_search_table(&hits);
+    
+    if !hits.is_empty() {
+        let short_id = format_object_id(&hits[0].object_id);
+        println!();
+        println!("💡 Quick access:");
+        println!("   fuku view @1     # View first note");
+        println!("   fuku edit @1     # Edit first note");
         println!("   Copy ID: {}", short_id);
     }
     Ok(())
