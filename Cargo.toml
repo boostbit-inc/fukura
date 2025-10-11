@@ -18,6 +18,7 @@ axum = { version = "0.8", features = ["json"] }
 chrono = { version = "0.4", features = ["serde"] }
 ciborium = "0.2"
 clap = { version = "4.5", features = ["derive"] }
+clap_complete = "4.5"
 directories = "6.0"
 flate2 = { version = "1.0", features = ["zlib"] }
 once_cell = "1.19"

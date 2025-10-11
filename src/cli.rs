@@ -35,6 +35,8 @@ use crate::index::{SearchHit, SearchIndex, SearchSort};
 use crate::models::{Author, Note, NoteRecord, Privacy};
 use crate::repo::FukuraRepo;
 use crate::sync::{pull_note, push_note};
+use clap::CommandFactory;
+use clap_complete::{generate, Shell};
 
 /// Format object ID for display (short format by default)
 fn format_object_id(id: &str) -> String {
@@ -104,6 +106,10 @@ pub enum Commands {
     /// Show repository statistics
     #[command(about = "Display repository statistics including note count, tags, and storage")]
     Stats,
+
+    /// Generate shell completions
+    #[command(about = "Generate shell completion scripts for bash/zsh/fish")]
+    Completions(CompletionsCommand),
 
     /// Optimize storage (garbage collection)
     #[command(about = "Pack loose objects to optimize storage and improve performance")]
@@ -332,6 +338,15 @@ pub struct ServeCommand {
 }
 
 #[derive(Debug, Args)]
+pub struct CompletionsCommand {
+    #[arg(value_name = "SHELL", help = "Shell type (bash, zsh, fish, powershell)")]
+    shell: String,
+    
+    #[arg(long, help = "Output to stdout instead of installing")]
+    stdout: bool,
+}
+
+#[derive(Debug, Args)]
 pub struct GcCommand {
     #[arg(long, help = "Remove loose objects")]
     prune: bool,
@@ -471,6 +486,7 @@ pub async fn run() -> Result<()> {
         Commands::Open(cmd) => handle_open(&cli, cmd)?,
         Commands::Serve(cmd) => handle_serve(&cli, cmd).await?,
         Commands::Stats => handle_stats(&cli)?,
+        Commands::Completions(cmd) => handle_completions(&cli, cmd)?,
         Commands::Gc(cmd) => handle_gc(&cli, cmd)?,
         Commands::Push(cmd) => handle_push(&cli, cmd).await?,
         Commands::Pull(cmd) => handle_pull(&cli, cmd).await?,
@@ -1226,6 +1242,76 @@ fn handle_stats(cli: &Cli) -> Result<()> {
         }
     }
     
+    Ok(())
+}
+
+fn handle_completions(cli: &Cli, cmd: &CompletionsCommand) -> Result<()> {
+    let shell = match cmd.shell.to_lowercase().as_str() {
+        "bash" => Shell::Bash,
+        "zsh" => Shell::Zsh,
+        "fish" => Shell::Fish,
+        "powershell" | "pwsh" => Shell::PowerShell,
+        _ => bail!("Unsupported shell: {}. Choose from: bash, zsh, fish, powershell", cmd.shell),
+    };
+
+    if cmd.stdout {
+        // Generate to stdout
+        let mut app = Cli::command();
+        generate(shell, &mut app, "fuku", &mut std::io::stdout());
+        return Ok(());
+    }
+
+    // Install completions
+    let home = std::env::var("HOME").context("HOME environment variable not set")?;
+    let home_path = std::path::PathBuf::from(&home);
+    
+    let (install_path, instructions) = match shell {
+        Shell::Bash => {
+            let path = home_path.join(".bash_completion.d");
+            fs::create_dir_all(&path)?;
+            let file = path.join("fuku");
+            (file, format!("Add 'source {}' to your ~/.bashrc", path.join("fuku").display()))
+        }
+        Shell::Zsh => {
+            let path = home_path.join(".zsh").join("completions");
+            fs::create_dir_all(&path)?;
+            let file = path.join("_fuku");
+            (file, format!("Add 'fpath=(~/.zsh/completions $fpath)' to your ~/.zshrc and run 'compinit'"))
+        }
+        Shell::Fish => {
+            let path = home_path.join(".config").join("fish").join("completions");
+            fs::create_dir_all(&path)?;
+            let file = path.join("fuku.fish");
+            (file, "Completions will be loaded automatically".to_string())
+        }
+        Shell::PowerShell => {
+            bail!("PowerShell completions should be output to stdout and added to your $PROFILE manually.\nRun: fuku completions powershell --stdout >> $PROFILE");
+        }
+        _ => unreachable!(),
+    };
+
+    // Generate completion file
+    let mut file = fs::File::create(&install_path)?;
+    let mut app = Cli::command();
+    generate(shell, &mut app, "fuku", &mut file);
+
+    if !cli.quiet {
+        println!("{} Shell completions installed!", "✓".green());
+        println!();
+        println!("📍 Location: {}", install_path.display());
+        println!();
+        println!("📝 Next steps:");
+        println!("   {}", instructions);
+        println!();
+        println!("💡 Restart your shell or run:");
+        match shell {
+            Shell::Bash => println!("   source ~/.bashrc"),
+            Shell::Zsh => println!("   source ~/.zshrc"),
+            Shell::Fish => println!("   # Completions load automatically"),
+            _ => {}
+        }
+    }
+
     Ok(())
 }
 
