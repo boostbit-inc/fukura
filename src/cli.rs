@@ -111,6 +111,10 @@ pub enum Commands {
     #[command(about = "Generate shell completion scripts for bash/zsh/fish")]
     Completions(CompletionsCommand),
 
+    /// Manage shell aliases
+    #[command(about = "Setup convenient shell aliases for fuku commands")]
+    Alias(AliasCommand),
+
     /// Optimize storage (garbage collection)
     #[command(about = "Pack loose objects to optimize storage and improve performance")]
     Gc(GcCommand),
@@ -347,6 +351,18 @@ pub struct CompletionsCommand {
 }
 
 #[derive(Debug, Args)]
+pub struct AliasCommand {
+    #[arg(long, help = "Show current aliases")]
+    show: bool,
+    
+    #[arg(long, help = "Setup aliases in shell rc file")]
+    setup: bool,
+    
+    #[arg(long, help = "Remove aliases from shell rc file")]
+    remove: bool,
+}
+
+#[derive(Debug, Args)]
 pub struct GcCommand {
     #[arg(long, help = "Remove loose objects")]
     prune: bool,
@@ -487,6 +503,7 @@ pub async fn run() -> Result<()> {
         Commands::Serve(cmd) => handle_serve(&cli, cmd).await?,
         Commands::Stats => handle_stats(&cli)?,
         Commands::Completions(cmd) => handle_completions(&cli, cmd)?,
+        Commands::Alias(cmd) => handle_alias(&cli, cmd)?,
         Commands::Gc(cmd) => handle_gc(&cli, cmd)?,
         Commands::Push(cmd) => handle_push(&cli, cmd).await?,
         Commands::Pull(cmd) => handle_pull(&cli, cmd).await?,
@@ -1310,6 +1327,152 @@ fn handle_completions(cli: &Cli, cmd: &CompletionsCommand) -> Result<()> {
             Shell::Fish => println!("   # Completions load automatically"),
             _ => {}
         }
+    }
+
+    Ok(())
+}
+
+fn handle_alias(cli: &Cli, cmd: &AliasCommand) -> Result<()> {
+    let aliases = vec![
+        ("fa", "fuku add -q"),
+        ("fl", "fuku list"),
+        ("fs", "fuku search"),
+        ("fv", "fuku view"),
+        ("fe", "fuku edit"),
+        ("fo", "fuku open"),
+        ("fst", "fuku stats"),
+        ("fsy", "fuku sync"),
+    ];
+
+    if cmd.show {
+        if !cli.quiet {
+            println!("{}", "📝 Recommended Aliases".bold().cyan());
+            println!();
+            for (alias, command) in &aliases {
+                println!("  {} = {}", alias.green(), command.dimmed());
+            }
+        }
+        return Ok(());
+    }
+
+    if cmd.remove {
+        // Detect shell
+        let shell = std::env::var("SHELL").unwrap_or_default();
+        let shell_name = std::path::Path::new(&shell)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("bash");
+
+        let home = std::env::var("HOME").context("HOME not set")?;
+        let rc_file = match shell_name {
+            "zsh" => format!("{}/.zshrc", home),
+            "fish" => format!("{}/.config/fish/config.fish", home),
+            "bash" => format!("{}/.bashrc", home),
+            _ => format!("{}/.bashrc", home),
+        };
+
+        if !std::path::Path::new(&rc_file).exists() {
+            bail!("RC file not found: {}", rc_file);
+        }
+
+        let content = fs::read_to_string(&rc_file)?;
+        let lines: Vec<&str> = content
+            .lines()
+            .filter(|line| {
+                !line.contains("# Fukura aliases") && !aliases.iter().any(|(a, _)| line.contains(&format!("alias {}=", a)))
+            })
+            .collect();
+
+        fs::write(&rc_file, lines.join("\n"))?;
+
+        if !cli.quiet {
+            println!("{} Aliases removed from {}", "✓".yellow(), rc_file);
+        }
+        return Ok(());
+    }
+
+    if cmd.setup {
+        // Detect shell
+        let shell = std::env::var("SHELL").unwrap_or_default();
+        let shell_name = std::path::Path::new(&shell)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("bash");
+
+        let home = std::env::var("HOME").context("HOME not set")?;
+        let rc_file = match shell_name {
+            "zsh" => format!("{}/.zshrc", home),
+            "fish" => format!("{}/.config/fish/config.fish", home),
+            "bash" => format!("{}/.bashrc", home),
+            _ => format!("{}/.bashrc", home),
+        };
+
+        // Check if aliases already exist
+        if std::path::Path::new(&rc_file).exists() {
+            let content = fs::read_to_string(&rc_file)?;
+            if content.contains("# Fukura aliases") {
+                if !cli.quiet {
+                    println!("{} Aliases already installed in {}", "ℹ️".blue(), rc_file);
+                    println!("💡 Use 'fuku alias --remove' to uninstall");
+                }
+                return Ok(());
+            }
+        }
+
+        let mut alias_lines = vec!["\n# Fukura aliases".to_string()];
+        
+        for (alias, command) in &aliases {
+            let alias_line = if shell_name == "fish" {
+                format!("alias {} '{}'", alias, command)
+            } else {
+                format!("alias {}='{}'", alias, command)
+            };
+            alias_lines.push(alias_line);
+        }
+        alias_lines.push("# End Fukura aliases\n".to_string());
+
+        // Append to rc file
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&rc_file)?;
+        use std::io::Write;
+        file.write_all(alias_lines.join("\n").as_bytes())?;
+
+        if !cli.quiet {
+            println!("{} Aliases installed!", "✓".green());
+            println!();
+            println!("📍 Location: {}", rc_file);
+            println!();
+            println!("📝 Aliases:");
+            for (alias, command) in &aliases {
+                println!("  {} → {}", alias.green(), command);
+            }
+            println!();
+            println!("💡 Restart your shell or run:");
+            match shell_name {
+                "zsh" => println!("   source ~/.zshrc"),
+                "fish" => println!("   source ~/.config/fish/config.fish"),
+                _ => println!("   source ~/.bashrc"),
+            }
+        }
+        return Ok(());
+    }
+
+    // Default: show aliases
+    if !cli.quiet {
+        println!("{}", "📝 Fukura Aliases".bold().cyan());
+        println!();
+        println!("💡 Quick commands for faster workflow:");
+        println!();
+        for (alias, command) in &aliases {
+            println!("  {} = {}", alias.green(), command.dimmed());
+        }
+        println!();
+        println!("Usage:");
+        println!("  fuku alias --show    # Show recommended aliases");
+        println!("  fuku alias --setup   # Install aliases to shell rc file");
+        println!("  fuku alias --remove  # Remove installed aliases");
     }
 
     Ok(())
