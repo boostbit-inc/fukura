@@ -97,6 +97,10 @@ pub enum Commands {
     #[command(about = "Start a local HTTP server to browse and manage notes via API")]
     Serve(ServeCommand),
 
+    /// Show repository statistics
+    #[command(about = "Display repository statistics including note count, tags, and storage")]
+    Stats,
+
     /// Optimize storage (garbage collection)
     #[command(about = "Pack loose objects to optimize storage and improve performance")]
     Gc(GcCommand),
@@ -456,6 +460,7 @@ pub async fn run() -> Result<()> {
         Commands::Edit(cmd) => handle_edit(&cli, cmd)?,
         Commands::Open(cmd) => handle_open(&cli, cmd)?,
         Commands::Serve(cmd) => handle_serve(&cli, cmd).await?,
+        Commands::Stats => handle_stats(&cli)?,
         Commands::Gc(cmd) => handle_gc(&cli, cmd)?,
         Commands::Push(cmd) => handle_push(&cli, cmd).await?,
         Commands::Pull(cmd) => handle_pull(&cli, cmd).await?,
@@ -1010,6 +1015,122 @@ fn handle_open(cli: &Cli, cmd: &OpenCommand) -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+fn handle_stats(cli: &Cli) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let config = repo.config()?;
+    
+    // Get all notes
+    let all_notes = repo.list_all_notes()?;
+    let total_notes = all_notes.len();
+    
+    // Collect tags
+    let all_tags = repo.collect_tags().unwrap_or_default();
+    
+    // Find last updated note
+    let last_updated = all_notes
+        .iter()
+        .map(|n| n.note.updated_at)
+        .max();
+    
+    // Calculate storage size
+    let objects_dir = repo.objects_dir();
+    let packs_dir = repo.pack_dir();
+    let mut total_size = 0u64;
+    let mut loose_count = 0usize;
+    
+    if objects_dir.exists() {
+        for entry in walkdir::WalkDir::new(&objects_dir).max_depth(3) {
+            if let Ok(entry) = entry {
+                if entry.file_type().is_file() {
+                    if let Ok(metadata) = entry.metadata() {
+                        total_size += metadata.len();
+                        loose_count += 1;
+                    }
+                }
+            }
+        }
+    }
+    
+    let mut pack_count = 0usize;
+    if packs_dir.exists() {
+        for entry in fs::read_dir(&packs_dir)? {
+            if let Ok(entry) = entry {
+                if entry.file_type()?.is_file() {
+                    if let Ok(metadata) = entry.metadata() {
+                        total_size += metadata.len();
+                        pack_count += 1;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Format size
+    let size_str = if total_size < 1024 {
+        format!("{}B", total_size)
+    } else if total_size < 1024 * 1024 {
+        format!("{:.1}KB", total_size as f64 / 1024.0)
+    } else {
+        format!("{:.1}MB", total_size as f64 / (1024.0 * 1024.0))
+    };
+    
+    if !cli.quiet {
+        println!("{}", "📊 Repository Statistics".bold().cyan());
+        println!();
+        println!("  {} Total notes: {}", "".yellow(), total_notes.to_string().bold());
+        println!("  {} Tags: {} unique", "🏷️".yellow(), all_tags.len().to_string().bold());
+        
+        if let Some(last_updated) = last_updated {
+            let time_ago = chrono::Utc::now() - last_updated;
+            let ago_str = if time_ago.num_minutes() < 60 {
+                format!("{} minutes ago", time_ago.num_minutes())
+            } else if time_ago.num_hours() < 24 {
+                format!("{} hours ago", time_ago.num_hours())
+            } else {
+                format!("{} days ago", time_ago.num_days())
+            };
+            println!("  {} Last updated: {}", "🕒".yellow(), ago_str.bold());
+        }
+        
+        println!();
+        println!("  {} Storage: {}", "💾".yellow(), size_str.bold());
+        println!("    • Loose objects: {}", loose_count);
+        println!("    • Pack files: {}", pack_count);
+        
+        println!();
+        println!("  {} Configuration:", "⚙️".yellow());
+        if let Some(remote) = &config.default_remote {
+            println!("    • Remote: {}", remote);
+        } else {
+            println!("    • Remote: {}", "not set".dimmed());
+        }
+        println!("    • Auto-sync: {}", 
+            if config.auto_sync.unwrap_or(false) { 
+                "enabled".green() 
+            } else { 
+                "disabled".red() 
+            }
+        );
+        
+        if config.daemon_enabled.unwrap_or(false) {
+            println!("    • Daemon: {}", "enabled".green());
+        } else {
+            println!("    • Daemon: {}", "disabled".dimmed());
+        }
+        
+        println!();
+        println!("💡 Tips:");
+        if loose_count > 10 {
+            println!("  • Run 'fuku gc' to pack loose objects");
+        }
+        if config.default_remote.is_none() {
+            println!("  • Set remote: 'fuku config remote --set <url>'");
+        }
+    }
+    
     Ok(())
 }
 
