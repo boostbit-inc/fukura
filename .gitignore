@@ -1,0 +1,23 @@
+# Build artifacts
+/target/
+dist/
+
+# Logs
+*.log
+
+# IDE/editor artifacts
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Rust tooling
+# Cargo.lock - needed for reproducible builds
+
+# Generated files
+*.fop
+*.fop.idx
+.fukura
+*.orig
+*.bak

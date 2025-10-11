@@ -1,0 +1,31 @@
+# Build artifacts
+target/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation (not needed in container)
+*.md
+docs/
+
+# CI/CD (not needed in container)
+.github/
+
+# Tests (not needed in container)
+# tests/
+
+# Temporary files
+*.tmp
+*.log
+

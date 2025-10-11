@@ -1,0 +1,47 @@
+[advisories]
+# Vulnerability database options
+db-urls = ["https://github.com/rustsec/advisory-db"]
+ignore = [
+    # paste is unmaintained but used by ratatui
+    { id = "RUSTSEC-2024-0436", reason = "paste is used by ratatui dependency, will be replaced when updated" },
+]
+
+[licenses]
+# Allow and deny lists (allow overrides deny)
+allow = [
+    # MIT
+    "MIT",
+    # Apache 2.0
+    "Apache-2.0",
+    # BSD 2-clause
+    "BSD-2-Clause",
+    # BSD 3-clause
+    "BSD-3-Clause",
+    # ISC
+    "ISC",
+    # Unicode
+    "Unicode-DFS-2016",
+    # Zlib
+    "Zlib",
+    # MPL 2.0
+    "MPL-2.0",
+    # CC0 (for examples/docs)
+    "CC0-1.0",
+    # 0BSD
+    "0BSD",
+    # Boost Software License
+    "BSL-1.0",
+    # Unicode License
+    "Unicode-3.0",
+    # CDLA Permissive
+    "CDLA-Permissive-2.0",
+]
+
+[bans]
+# Lint level for when multiple versions of the same crate are detected
+multiple-versions = "allow"
+# Allow/deny list of crates to skip multiple-versions check
+skip = []
+# The default lint level for `default` features for crates that are members of
+# the workspace that is being checked
+workspace-default-features = "allow"

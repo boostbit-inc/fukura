@@ -1,0 +1,108 @@
+name: APT Repository Deployment
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  apt-deploy:
+    runs-on: "ubuntu-22.04"
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download release assets
+        run: |
+          mkdir -p dist
+          # Download all assets from the release
+          gh release download ${{ github.event.release.tag_name }} --dir dist || true
+      
+      - name: Check for .deb files
+        id: check-deb
+        run: |
+          if ls dist/*.deb 1> /dev/null 2>&1; then
+            echo "has_deb=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_deb=false" >> $GITHUB_OUTPUT
+            echo "No .deb files found in release"
+          fi
+      
+      - name: Build APT repository
+        if: steps.check-deb.outputs.has_deb == 'true'
+        run: |
+          if [ -f "scripts/linux/build-apt-repo.sh" ]; then
+            bash scripts/linux/build-apt-repo.sh dist
+            echo "APT repository built successfully"
+          else
+            echo "build-apt-repo.sh not found"
+            exit 1
+          fi
+      
+      - name: Export GPG public key
+        if: steps.check-deb.outputs.has_deb == 'true'
+        env:
+          LINUX_GPG_KEY: ${{ secrets.LINUX_GPG_KEY }}
+        run: |
+          if [ -n "${LINUX_GPG_KEY:-}" ] && [ -d "dist/apt" ]; then
+            echo "$LINUX_GPG_KEY" | base64 --decode | gpg --batch --import
+            KEY_ID=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')
+            
+            if [ -n "$KEY_ID" ]; then
+              gpg --batch --armor --export "$KEY_ID" > dist/fukura-gpg.asc
+              echo "Exported GPG public key (Key ID: $KEY_ID)"
+            fi
+          else
+            echo "GPG key not available or no APT repo, skipping key export"
+          fi
+      
+      - name: Package APT repository
+        if: steps.check-deb.outputs.has_deb == 'true'
+        run: |
+          if [ -d "dist/apt" ]; then
+            cd dist
+            tar -czf apt-repo.tar.gz apt/
+            echo "APT repository packaged: apt-repo.tar.gz"
+            tar -tzf apt-repo.tar.gz | head -20
+          else
+            echo "No APT repository found"
+            exit 1
+          fi
+      
+      - name: Upload APT artifacts to release
+        if: steps.check-deb.outputs.has_deb == 'true'
+        run: |
+          if [ -f "dist/apt-repo.tar.gz" ]; then
+            gh release upload ${{ github.event.release.tag_name }} dist/apt-repo.tar.gz --clobber
+            echo "Uploaded apt-repo.tar.gz"
+          fi
+          
+          if [ -f "dist/fukura-gpg.asc" ]; then
+            gh release upload ${{ github.event.release.tag_name }} dist/fukura-gpg.asc --clobber
+            echo "Uploaded fukura-gpg.asc"
+          fi
+      
+      - name: Trigger fukura-site APT deployment
+        if: steps.check-deb.outputs.has_deb == 'true'
+        env:
+          SITE_DISPATCH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "${SITE_DISPATCH_TOKEN:-}" ]; then
+            echo "SITE_DISPATCH_TOKEN not set, skipping APT deployment trigger"
+            exit 0
+          fi
+          
+          if [ ! -f "dist/apt-repo.tar.gz" ]; then
+            echo "No APT repository to deploy, skipping"
+            exit 0
+          fi
+          
+          echo "Triggering APT repository deployment to fukura-site..."
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${SITE_DISPATCH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/repos/boostbit-inc/fukura-site/dispatches \
+            -d "{\"event_type\":\"apt-deploy\",\"client_payload\":{\"source\":\"boostbit-inc/fukura\",\"version\":\"${{ github.event.release.tag_name }}\",\"tag\":\"${{ github.event.release.tag_name }}\"}}"
+          
+          echo "APT deployment triggered successfully"
