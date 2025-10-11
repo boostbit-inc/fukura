@@ -324,16 +324,23 @@ impl FukuraRepo {
                 .context("No notes found. Use @latest after creating notes.");
         }
 
-        // Handle @N shorthand (search result index from last search)
+        // Handle @N shorthand (search result index from last search, or fallback to all notes)
         if let Some(stripped) = candidate.strip_prefix('@') {
             if let Ok(index) = stripped.parse::<usize>() {
-                let hits = self.load_search_cache()
-                    .context("No recent search results. Run 'fuku search' first to use @N references.")?;
+                // Try to load cached search results
+                let hits = match self.load_search_cache() {
+                    Ok(cached) if !cached.is_empty() => cached,
+                    _ => {
+                        // Fallback: use all notes sorted by update time
+                        self.search("", 100, SearchSort::Updated)?
+                    }
+                };
+                
                 if index > 0 && index <= hits.len() {
                     return Ok(hits[index - 1].object_id.clone());
                 }
                 bail!(
-                    "@{} is out of range (last search had {} results)",
+                    "@{} is out of range. Available: @1 to @{}\n💡 Tip: Run 'fuku list' to see all notes",
                     index,
                     hits.len()
                 );
