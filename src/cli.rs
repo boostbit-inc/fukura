@@ -368,6 +368,8 @@ pub struct SyncCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum ConfigCommand {
+    /// Show current configuration
+    Show,
     /// Configure remote URL
     Remote(RemoteCommand),
     /// Manage redaction rules
@@ -1255,6 +1257,69 @@ async fn handle_sync(cli: &Cli, cmd: &SyncCommand) -> Result<()> {
 
 fn handle_config(cli: &Cli, cmd: &ConfigCommand) -> Result<()> {
     match cmd {
+        ConfigCommand::Show => {
+            let repo = open_repo(cli)?;
+            let config = repo.config()?;
+            
+            if !cli.quiet {
+                println!("{}", "📝 Configuration".bold().cyan());
+                println!();
+                
+                // Repository info
+                println!("  {} Repository:", "📁".yellow());
+                println!("    • Path: {}", repo.root().display());
+                println!();
+                
+                // Remote configuration
+                println!("  {} Remote:", "🌐".yellow());
+                if let Some(remote) = &config.default_remote {
+                    println!("    • URL: {}", remote.green());
+                } else {
+                    println!("    • URL: {}", "not configured".dimmed());
+                }
+                
+                // Sync configuration
+                println!("    • Auto-sync: {}", 
+                    if config.auto_sync.unwrap_or(false) { 
+                        "enabled".green() 
+                    } else { 
+                        "disabled".red() 
+                    }
+                );
+                println!();
+                
+                // Daemon configuration
+                println!("  {} Daemon:", "⚙️".yellow());
+                println!("    • Enabled: {}", 
+                    if config.daemon_enabled.unwrap_or(false) { 
+                        "yes".green() 
+                    } else { 
+                        "no".dimmed() 
+                    }
+                );
+                println!();
+                
+                // Redaction rules
+                println!("  {} Redaction Rules:", "🔒".yellow());
+                if config.redaction_overrides.is_empty() {
+                    println!("    • {}", "none configured".dimmed());
+                } else {
+                    for (name, pattern) in &config.redaction_overrides {
+                        println!("    • {} = {}", name.cyan(), pattern);
+                    }
+                }
+                println!();
+                
+                println!("💡 Commands:");
+                if config.default_remote.is_none() {
+                    println!("  • Set remote: fuku config remote --set <url>");
+                }
+                println!("  • Enable auto-sync: fuku sync --enable-auto");
+                println!("  • Add redaction: fuku config redact --set 'api_key=(?i)api[_-]?key\\s*[:=]\\s*['\"]?([a-zA-Z0-9]+)'");
+            }
+            
+            Ok(())
+        }
         ConfigCommand::Remote(remote) => {
             ensure!(
                 !(remote.clear && remote.set.is_some()),
@@ -1302,6 +1367,7 @@ fn handle_config(cli: &Cli, cmd: &ConfigCommand) -> Result<()> {
                     }
                 }
             }
+            Ok(())
         }
         ConfigCommand::Redact(redact) => {
             let repo = open_repo(cli)?;
@@ -1324,9 +1390,9 @@ fn handle_config(cli: &Cli, cmd: &ConfigCommand) -> Result<()> {
                     }
                 }
             }
+            Ok(())
         }
     }
-    Ok(())
 }
 
 fn parse_redaction_entry(entry: &str) -> Result<(String, String)> {
