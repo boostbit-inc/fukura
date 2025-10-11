@@ -36,6 +36,15 @@ use crate::models::{Author, Note, NoteRecord, Privacy};
 use crate::repo::FukuraRepo;
 use crate::sync::{pull_note, push_note};
 
+/// Format object ID for display (short format by default)
+fn format_object_id(id: &str) -> String {
+    if id.len() > 8 {
+        id[..8].to_string()
+    } else {
+        id.to_string()
+    }
+}
+
 #[derive(Debug, Parser)]
 #[command(
     name = "fuku",
@@ -582,18 +591,17 @@ async fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
     let record = repo.store_note(note)?;
 
     if !cli.quiet {
+        let short_id = format_object_id(&record.object_id);
         println!(
             "{} Captured {} ({})",
             "".green(),
             record.note.title.bold(),
-            record.object_id
+            short_id
         );
         if !record.note.tags.is_empty() {
             println!("{}  #{}", "".dimmed(), record.note.tags.join(" #"));
         }
-        if let Some(latest) = repo.latest()? {
-            println!("{}  Latest note → {}", "".dimmed(), latest);
-        }
+        println!("💡 Quick view: fuku view @latest");
     }
 
     // Auto-sync if enabled
@@ -650,14 +658,12 @@ fn handle_search(cli: &Cli, cmd: &SearchCommand) -> Result<()> {
         return Ok(());
     }
     render_search_table(&hits);
-    if let Some(first) = hits.first() {
-        let short_id = &first.object_id[..8.min(first.object_id.len())];
+    if !hits.is_empty() {
+        let short_id = format_object_id(&hits[0].object_id);
         println!(
-            "{} View: fuku view {} · Open: fuku open {}",
-            "Hint".bold().dimmed(),
-            short_id,
-            short_id
+            "💡 Next: fuku view @1 (or fuku open @1 to open in browser)"
         );
+        println!("   Copy ID: {}", short_id);
     }
     Ok(())
 }
@@ -718,10 +724,9 @@ fn search_all_repos(
 
     if let Some(first) = all_hits.first() {
         if let Some(repo_path) = repo_map.get(&first.object_id) {
-            let short_id = &first.object_id[..8.min(first.object_id.len())];
+            let short_id = format_object_id(&first.object_id);
             println!(
-                "{} View: fuku view {} --repo {}",
-                "Hint".bold().dimmed(),
+                "💡 View: fuku view {} --repo {}",
                 short_id,
                 repo_path
             );
@@ -1240,10 +1245,11 @@ fn render_search_table(hits: &[SearchHit]) {
 fn render_note(record: &NoteRecord) {
     let note = &record.note;
     println!("{}", note.title.bold());
+    let short_id = format_object_id(&record.object_id);
     println!(
         "{} {} · {}",
         "".cyan(),
-        record.object_id,
+        short_id,
         note.updated_at.format("%Y-%m-%d %H:%M UTC")
     );
     if !note.tags.is_empty() {
