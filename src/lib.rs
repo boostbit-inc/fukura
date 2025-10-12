@@ -13,5 +13,6 @@ pub mod pack;
 pub mod redaction;
 pub mod repo;
 pub mod sync;
+pub mod time_parser;
 
 pub use cli::run;
