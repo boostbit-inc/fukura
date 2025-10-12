@@ -21,3 +21,16 @@ dist/
 .fukura
 *.orig
 *.bak
+
+# Ignore all .md files except those already tracked
+*.md
+!README.md
+!CHANGELOG.md
+!CONTRIBUTING.md
+!docs/README.md
+!docs/security.md
+!docs/developer/*.md
+!docs/user-guide/*.md
+
+# Test/demo files
+test_time_recording.rs
