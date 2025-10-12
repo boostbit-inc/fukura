@@ -70,6 +70,7 @@ pub struct ErrorEntry {
     pub normalized: String,
     pub source: String, // stderr, clipboard, etc.
     pub timestamp: SystemTime,
+    pub stderr_output: Option<String>, // Actual stderr content from command
 }
 
 #[derive(Debug, Clone)]
@@ -223,13 +224,15 @@ impl FukuraDaemon {
                             Ok(n) if n > 0 => {
                                 let data = &buffer[..n];
                                 if let Ok(msg) = String::from_utf8(data.to_vec()) {
-                                    // Parse message: "session_id|command|exit_code|working_dir"
+                                    // Parse message: "session_id|command|exit_code|working_dir|stderr"
                                     let parts: Vec<&str> = msg.trim().split('|').collect();
                                     if parts.len() >= 4 {
                                         let session_id = parts[0];
                                         let command = parts[1];
                                         let exit_code = parts[2].parse::<i32>().unwrap_or(0);
                                         let working_dir = parts[3];
+                                        let stderr_content =
+                                            if parts.len() >= 5 { parts[4] } else { "" };
 
                                         // Record command
                                         let mut sessions = sessions.write().await;
@@ -266,15 +269,28 @@ impl FukuraDaemon {
 
                                             // Check if error and send notification
                                             if exit_code != 0 {
-                                                let error_message = format!(
-                                                    "Command '{}' failed with exit code {}",
-                                                    command, exit_code
-                                                );
+                                                let error_message = if !stderr_content.is_empty() {
+                                                    format!(
+                                                        "Command '{}' failed: {}",
+                                                        command, stderr_content
+                                                    )
+                                                } else {
+                                                    format!(
+                                                        "Command '{}' failed with exit code {}",
+                                                        command, exit_code
+                                                    )
+                                                };
+
                                                 session.errors.push(ErrorEntry {
                                                     message: error_message.clone(),
                                                     normalized: error_message.clone(),
                                                     source: "shell".to_string(),
                                                     timestamp: SystemTime::now(),
+                                                    stderr_output: if !stderr_content.is_empty() {
+                                                        Some(stderr_content.to_string())
+                                                    } else {
+                                                        None
+                                                    },
                                                 });
 
                                                 // BEST PRACTICE: Create note immediately (like Git commit)
@@ -289,28 +305,52 @@ impl FukuraDaemon {
                                                         }),
                                                 );
 
-                                                let note = Note {
-                                                    title: format!("Error: {}", command),
-                                                    body: format!(
-                                                        "## Command Failed\n\n```\n{}\n```\n\n**Exit Code**: {}\n\n**Error**: {}\n\n**Working Directory**: {}\n\n**Time**: {}",
+                                                let body_text = if !stderr_content.is_empty() {
+                                                    format!(
+                                                        "## Command Failed\n\n```bash\n$ {}\n\n# Error output:\n{}\n```\n\n**Exit Code**: {}\n\n**Working Directory**: `{}`\n\n**Time**: {}",
+                                                        command,
+                                                        stderr_content,
+                                                        exit_code,
+                                                        working_dir,
+                                                        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
+                                                    )
+                                                } else {
+                                                    format!(
+                                                        "## Command Failed\n\n```bash\n$ {}\n```\n\n**Exit Code**: {}\n\n**Error**: {}\n\n**Working Directory**: `{}`\n\n**Time**: {}",
                                                         command,
                                                         exit_code,
                                                         error_message,
                                                         working_dir,
                                                         chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
-                                                    ),
-                                                    tags: vec!["error".to_string(), "auto-captured".to_string()],
+                                                    )
+                                                };
+
+                                                let note = Note {
+                                                    title: format!("Error: {}", command),
+                                                    body: body_text,
+                                                    tags: vec![
+                                                        "error".to_string(),
+                                                        "auto-captured".to_string(),
+                                                    ],
                                                     links: vec![],
                                                     meta: std::collections::BTreeMap::from([
-                                                        ("exit_code".to_string(), exit_code.to_string()),
-                                                        ("working_dir".to_string(), working_dir.to_string()),
+                                                        (
+                                                            "exit_code".to_string(),
+                                                            exit_code.to_string(),
+                                                        ),
+                                                        (
+                                                            "working_dir".to_string(),
+                                                            working_dir.to_string(),
+                                                        ),
                                                     ]),
                                                     solutions: vec![],
                                                     privacy: Privacy::Private,
                                                     created_at: chrono::Utc::now(),
                                                     updated_at: chrono::Utc::now(),
                                                     author: Author {
-                                                        name: std::env::var("USER").unwrap_or_else(|_| "unknown".to_string()),
+                                                        name: std::env::var("USER").unwrap_or_else(
+                                                            |_| "unknown".to_string(),
+                                                        ),
                                                         email: None,
                                                     },
                                                 };
@@ -489,6 +529,7 @@ impl FukuraDaemon {
                                             normalized: error_message.clone(),
                                             source: "shell".to_string(),
                                             timestamp: SystemTime::now(),
+                                            stderr_output: None,
                                         });
 
                                         drop(sessions);
@@ -678,14 +719,14 @@ impl FukuraDaemon {
                     // Success after error - INSTANT note creation!
                     let session_clone = session.clone();
                     drop(sessions);
-                    
+
                     // Create resolution note immediately
                     tokio::spawn(async move {
                         if let Err(e) = Self::create_instant_resolution_note(session_clone).await {
                             tracing::error!("Failed to create resolution note: {}", e);
                         }
                     });
-                    
+
                     // Reset tracking
                     let mut sessions = self.sessions.write().await;
                     if let Some(s) = sessions.get_mut(session_id) {
@@ -712,6 +753,7 @@ impl FukuraDaemon {
                 normalized: normalized.clone(),
                 source: source.to_string(),
                 timestamp: SystemTime::now(),
+                stderr_output: None,
             });
             session.last_activity = SystemTime::now();
         }
@@ -884,6 +926,7 @@ impl FukuraDaemon {
             normalized: self.normalize_error_message(&format!("Command failed: {}", command)),
             source: "command".to_string(),
             timestamp: SystemTime::now(),
+            stderr_output: None,
         };
 
         session.errors.push(error_entry);
@@ -1105,18 +1148,20 @@ impl FukuraDaemon {
     /// Create instant resolution note when error is solved (WORLD-CLASS)
     async fn create_instant_resolution_note(session: ActiveSession) -> Result<()> {
         // Discover repo
-        let repo = match FukuraRepo::discover(Some(std::path::Path::new(&session.context.working_directory))) {
+        let repo = match FukuraRepo::discover(Some(std::path::Path::new(
+            &session.context.working_directory,
+        ))) {
             Ok(r) => r,
             Err(_) => return Ok(()),
         };
-        
+
         // Get recent commands (last 10 or until error)
         let recent_commands: Vec<_> = session.commands.iter().rev().take(10).collect();
-        
+
         // Find error commands and solution commands
         let mut error_cmd = None;
         let mut solution_steps = Vec::new();
-        
+
         for cmd in recent_commands.iter().rev() {
             if let Some(code) = cmd.exit_code {
                 if code != 0 && error_cmd.is_none() {
@@ -1126,22 +1171,31 @@ impl FukuraDaemon {
                 }
             }
         }
-        
+
         let error = match error_cmd {
             Some(e) => e,
             None => return Ok(()), // No error found
         };
-        
+
         // Generate title
         let title = format!("Solved: {}", error.command);
-        
+
         // Generate body
         let mut body = String::new();
         body.push_str("## 🎯 Problem Solved\n\n");
         body.push_str("### ❌ Error Encountered\n\n");
-        body.push_str(&format!("```bash\n$ {}\n```\n", error.command));
+        body.push_str(&format!("```bash\n$ {}\n", error.command));
+
+        // Add stderr if available
+        if let Some(error_entry) = session.errors.last() {
+            if let Some(ref stderr) = error_entry.stderr_output {
+                body.push_str(&format!("\n# Error output:\n{}\n", stderr));
+            }
+        }
+
+        body.push_str("```\n");
         body.push_str(&format!("Exit code: {}\n\n", error.exit_code.unwrap_or(1)));
-        
+
         if !solution_steps.is_empty() {
             body.push_str("### ✅ Solution Steps (Auto-detected)\n\n");
             for (idx, cmd) in solution_steps.iter().enumerate() {
@@ -1149,7 +1203,7 @@ impl FukuraDaemon {
             }
             body.push_str("\n");
         }
-        
+
         body.push_str("### 📋 Recent Command History\n\n");
         for cmd in recent_commands.iter().rev() {
             let status = match cmd.exit_code {
@@ -1159,22 +1213,32 @@ impl FukuraDaemon {
             };
             body.push_str(&format!("{} `{}`\n", status, cmd.command));
         }
-        
+
         if let Some(ref branch) = session.context.git_branch {
             body.push_str(&format!("\n**Git Branch**: `{}`\n", branch));
         }
-        
+
         // Extract tags
         let mut tags = vec!["auto-solved".to_string(), "resolution".to_string()];
         let cmd_lower = error.command.to_lowercase();
-        if cmd_lower.contains("cargo") || cmd_lower.contains("rust") { tags.push("rust".to_string()); }
-        if cmd_lower.contains("npm") || cmd_lower.contains("node") { tags.push("nodejs".to_string()); }
-        if cmd_lower.contains("docker") { tags.push("docker".to_string()); }
-        if cmd_lower.contains("git") { tags.push("git".to_string()); }
-        if cmd_lower.contains("python") || cmd_lower.contains("pip") { tags.push("python".to_string()); }
+        if cmd_lower.contains("cargo") || cmd_lower.contains("rust") {
+            tags.push("rust".to_string());
+        }
+        if cmd_lower.contains("npm") || cmd_lower.contains("node") {
+            tags.push("nodejs".to_string());
+        }
+        if cmd_lower.contains("docker") {
+            tags.push("docker".to_string());
+        }
+        if cmd_lower.contains("git") {
+            tags.push("git".to_string());
+        }
+        if cmd_lower.contains("python") || cmd_lower.contains("pip") {
+            tags.push("python".to_string());
+        }
         tags.sort();
         tags.dedup();
-        
+
         let note = Note {
             title: title.clone(),
             body,
@@ -1183,7 +1247,10 @@ impl FukuraDaemon {
             meta: std::collections::BTreeMap::from([
                 ("auto-resolution".to_string(), "true".to_string()),
                 ("error_command".to_string(), error.command.clone()),
-                ("solution_steps".to_string(), solution_steps.len().to_string()),
+                (
+                    "solution_steps".to_string(),
+                    solution_steps.len().to_string(),
+                ),
             ]),
             solutions: vec![],
             privacy: Privacy::Private,
@@ -1194,11 +1261,15 @@ impl FukuraDaemon {
                 email: None,
             },
         };
-        
+
         match repo.store_note(note) {
             Ok(record) => {
-                tracing::info!("✨ Auto-resolution note created: {} ({})", title, &record.object_id[..8]);
-                
+                tracing::info!(
+                    "✨ Auto-resolution note created: {} ({})",
+                    title,
+                    &record.object_id[..8]
+                );
+
                 // Send success notification
                 if let Ok(notif) = NotificationManager::new(repo.root()) {
                     let summary = "Fukura: Problem Solved! 🎉";
@@ -1209,7 +1280,7 @@ impl FukuraDaemon {
                     );
                     let _ = notif.notify_solution_found(&body_text, solution_steps.len());
                 }
-                
+
                 Ok(())
             }
             Err(e) => {
