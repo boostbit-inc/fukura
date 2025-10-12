@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration as StdDuration;
+use std::time::{Duration as StdDuration, SystemTime};
 
 use anyhow::{bail, ensure, Context, Result};
 use axum::extract::{Path as AxumPath, Query as AxumQuery, State};
@@ -330,6 +330,18 @@ pub enum Commands {
     /// View activity history
     #[command(about = "View comprehensive activity history")]
     Activity(ActivityCommand),
+
+    /// Show activity log (like git log)
+    #[command(about = "Show activity history in timeline format", visible_alias = "l")]
+    Log(LogCommand),
+
+    /// Show activity details (like git show)
+    #[command(about = "Show detailed activity information")]
+    Show(ShowCommand),
+
+    /// Track activities
+    #[command(about = "Start/stop activity tracking")]
+    Track(TrackCommand),
 }
 
 #[derive(Debug, Args)]
@@ -345,6 +357,54 @@ pub struct ActivityCommand {
 
     #[arg(long, value_name = "TIME_AGO", help = "Show activities since (e.g., '1h ago')")]
     since: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct LogCommand {
+    #[arg(short = 'n', long, default_value = "10", help = "Number of entries to show")]
+    limit: usize,
+
+    #[arg(long, value_name = "TIME_AGO", help = "Show since (e.g., '1h ago')")]
+    since: Option<String>,
+
+    #[arg(long, help = "Show only file changes")]
+    files: bool,
+
+    #[arg(long, help = "Show only commands")]
+    commands: bool,
+
+    #[arg(long, help = "Compact output")]
+    oneline: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct ShowCommand {
+    #[arg(value_name = "SESSION_ID", help = "Session ID or @latest")]
+    id: String,
+
+    #[arg(long, help = "Show full details")]
+    full: bool,
+
+    #[arg(long, help = "Show as JSON")]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct TrackCommand {
+    #[arg(long, help = "Start tracking")]
+    start: bool,
+
+    #[arg(long, help = "Stop tracking")]
+    stop: bool,
+
+    #[arg(long, help = "Show tracking status")]
+    status: bool,
+
+    #[arg(long, help = "Enable file tracking")]
+    files: bool,
+
+    #[arg(long, help = "Enable clipboard tracking")]
+    clipboard: bool,
 }
 
 #[derive(Debug, Args)]
@@ -747,6 +807,9 @@ pub async fn run() -> Result<()> {
         Commands::Restart => handle_restart(&cli).await?,
         Commands::Daemon(cmd) => handle_daemon(&cli, cmd).await?,
         Commands::Activity(cmd) => handle_activity(&cli, cmd).await?,
+        Commands::Log(cmd) => handle_log(&cli, cmd).await?,
+        Commands::Show(cmd) => handle_show_activity(&cli, cmd).await?,
+        Commands::Track(cmd) => handle_track(&cli, cmd).await?,
     }
     Ok(())
 }
@@ -3314,6 +3377,303 @@ async fn handle_restart(cli: &Cli) -> Result<()> {
         println!("{} Daemon restarted", "".green());
     }
     Ok(())
+}
+
+async fn handle_log(cli: &Cli, cmd: &LogCommand) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let storage = crate::activity_storage::ActivityStorage::new(repo.root())?;
+
+    // Get sessions
+    let sessions = if let Some(time_expr) = &cmd.since {
+        let target_time = crate::time_parser::parse_time_ago(time_expr)?;
+        storage.get_sessions_since(target_time)?
+    } else {
+        let all_session_ids = storage.list_sessions()?;
+        all_session_ids
+            .into_iter()
+            .filter_map(|id| storage.load_session(&id).ok())
+            .collect()
+    };
+
+    if sessions.is_empty() {
+        if !cli.quiet {
+            println!("{} No activities recorded yet", "ℹ️".cyan());
+            println!();
+            println!("💡 Start tracking with: fuku track --start");
+        }
+        return Ok(());
+    }
+
+    // Sort by time (most recent first)
+    let mut sessions: Vec<_> = sessions;
+    sessions.sort_by(|a, b| b.start_time.cmp(&a.start_time));
+    
+    // Limit results
+    sessions.truncate(cmd.limit);
+
+    if !cli.quiet {
+        for session in sessions {
+            let duration = session.duration().unwrap_or_default();
+            let time_str = format_time(session.start_time);
+            
+            if cmd.oneline {
+                println!(
+                    "{} {} {} ({}s, {} activities)",
+                    format_object_id(&session.id).yellow(),
+                    time_str.dimmed(),
+                    session.title,
+                    duration.as_secs(),
+                    session.activities.len()
+                );
+            } else {
+                println!("{} {}", "commit".yellow(), format_object_id(&session.id));
+                println!("Date:   {}", time_str);
+                println!();
+                println!("    {}", session.title);
+                println!();
+                
+                if cmd.files {
+                    // Show only file changes
+                    let file_count = session.activities.iter()
+                        .filter(|a| matches!(a.activity_type, crate::activity::ActivityType::FileChange(_)))
+                        .count();
+                    println!("    {} file changes", file_count);
+                } else if cmd.commands {
+                    // Show only commands
+                    let cmd_count = session.activities.iter()
+                        .filter(|a| matches!(a.activity_type, crate::activity::ActivityType::Command(_)))
+                        .count();
+                    println!("    {} commands executed", cmd_count);
+                } else {
+                    println!("    {} activities", session.activities.len());
+                }
+                println!();
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn handle_show_activity(cli: &Cli, cmd: &ShowCommand) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let storage = crate::activity_storage::ActivityStorage::new(repo.root())?;
+
+    // Resolve ID
+    let session_id = if cmd.id == "@latest" {
+        let sessions = storage.list_sessions()?;
+        if sessions.is_empty() {
+            bail!("No activity sessions found");
+        }
+        sessions.into_iter()
+            .filter_map(|id| storage.load_session(&id).ok())
+            .max_by_key(|s| s.start_time)
+            .map(|s| s.id)
+            .ok_or_else(|| anyhow::anyhow!("No sessions found"))?
+    } else {
+        cmd.id.clone()
+    };
+
+    let session = storage.load_session(&session_id)?;
+
+    if cmd.json {
+        let json = serde_json::to_string_pretty(&session)?;
+        println!("{}", json);
+        return Ok(());
+    }
+
+    if !cli.quiet {
+        println!("{} {}", "session".yellow().bold(), format_object_id(&session_id));
+        println!("Title:    {}", session.title.bold());
+        println!("Started:  {}", format_time(session.start_time));
+        if let Some(end) = session.end_time {
+            println!("Ended:    {}", format_time(end));
+            let duration = end.duration_since(session.start_time).unwrap_or_default();
+            println!("Duration: {}s", duration.as_secs());
+        }
+        println!();
+
+        if cmd.full || session.activities.len() <= 20 {
+            // Show all activities
+            println!("Activities:");
+            println!();
+            
+            for (i, activity) in session.activities.iter().enumerate() {
+                let time = format_time(activity.timestamp);
+                match &activity.activity_type {
+                    crate::activity::ActivityType::Command(c) => {
+                        let status = if c.exit_code == Some(0) {
+                            "✓".green()
+                        } else {
+                            "✗".red()
+                        };
+                        println!("  {} [{}] {} {}", 
+                            format!("{:3}", i+1).dimmed(),
+                            time.dimmed(),
+                            status,
+                            c.command.bold()
+                        );
+                    }
+                    crate::activity::ActivityType::FileChange(f) => {
+                        let icon = match f.change_type {
+                            crate::activity::FileChangeType::Created => "+".green(),
+                            crate::activity::FileChangeType::Modified => "M".yellow(),
+                            crate::activity::FileChangeType::Deleted => "-".red(),
+                            crate::activity::FileChangeType::Renamed { .. } => "R".blue(),
+                        };
+                        println!("  {} [{}] {} {:?}", 
+                            format!("{:3}", i+1).dimmed(),
+                            time.dimmed(),
+                            icon,
+                            f.path
+                        );
+                    }
+                    crate::activity::ActivityType::Clipboard(c) => {
+                        let preview = if c.content.len() > 60 {
+                            format!("{}...", &c.content[..60])
+                        } else {
+                            c.content.clone()
+                        };
+                        println!("  {} [{}] 📋 {}", 
+                            format!("{:3}", i+1).dimmed(),
+                            time.dimmed(),
+                            preview.dimmed()
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        } else {
+            // Summary only
+            println!("Activity Summary:");
+            println!("  Total: {} activities", session.activities.len());
+            
+            let commands = session.activities.iter()
+                .filter(|a| matches!(a.activity_type, crate::activity::ActivityType::Command(_)))
+                .count();
+            let files = session.activities.iter()
+                .filter(|a| matches!(a.activity_type, crate::activity::ActivityType::FileChange(_)))
+                .count();
+            
+            println!("  Commands: {}", commands);
+            println!("  File changes: {}", files);
+            println!();
+            println!("💡 Use --full to see all activities");
+        }
+    }
+
+    Ok(())
+}
+
+async fn handle_track(cli: &Cli, cmd: &TrackCommand) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let config_path = repo.root().join(".fukura").join("config.toml");
+    let mut config = crate::config::FukuraConfig::load(&config_path)?;
+
+    if cmd.status {
+        // Show tracking status
+        if !cli.quiet {
+            println!("{} Activity Tracking Status", "📊".cyan().bold());
+            println!();
+            println!("  Enabled:          {}", format_bool(config.activity_tracking.enabled));
+            println!("  File tracking:    {}", format_bool(config.activity_tracking.file_tracking));
+            println!("  Clipboard:        {}", format_bool(config.activity_tracking.clipboard_tracking));
+            println!("  App tracking:     {}", format_bool(config.activity_tracking.app_tracking));
+            println!("  Editor tracking:  {}", format_bool(config.activity_tracking.editor_tracking));
+            println!();
+            println!("Limits:");
+            println!("  Max activities:   {}", config.activity_tracking.max_activities_per_session);
+            println!("  Retention:        {} days", config.activity_tracking.retention_days);
+            println!("  Max file size:    {} KB", config.activity_tracking.max_file_size_kb);
+        }
+        return Ok(());
+    }
+
+    if cmd.start {
+        config.activity_tracking.enabled = true;
+        config.save(&config_path)?;
+        
+        if !cli.quiet {
+            println!("{} Activity tracking enabled", "✓".green().bold());
+            println!();
+            println!("💡 Tracking:");
+            println!("  • Commands");
+            println!("  • File changes");
+            println!("  • Application switches");
+            println!();
+            println!("View with: fuku log");
+        }
+        return Ok(());
+    }
+
+    if cmd.stop {
+        config.activity_tracking.enabled = false;
+        config.save(&config_path)?;
+        
+        if !cli.quiet {
+            println!("{} Activity tracking disabled", "⏹️".yellow());
+        }
+        return Ok(());
+    }
+
+    if cmd.files {
+        config.activity_tracking.file_tracking = !config.activity_tracking.file_tracking;
+        config.save(&config_path)?;
+        
+        if !cli.quiet {
+            println!("{} File tracking: {}", 
+                "✓".green(), 
+                format_bool(config.activity_tracking.file_tracking)
+            );
+        }
+        return Ok(());
+    }
+
+    if cmd.clipboard {
+        config.activity_tracking.clipboard_tracking = !config.activity_tracking.clipboard_tracking;
+        config.save(&config_path)?;
+        
+        if !cli.quiet {
+            println!("{} Clipboard tracking: {}", 
+                "✓".green(), 
+                format_bool(config.activity_tracking.clipboard_tracking)
+            );
+            if config.activity_tracking.clipboard_tracking {
+                println!();
+                println!("⚠️  Clipboard tracking is privacy-sensitive");
+                println!("   Sensitive data will be automatically redacted");
+            }
+        }
+        return Ok(());
+    }
+
+    // Default: show status
+    if !cli.quiet {
+        println!("{} Activity Tracking Status", "📊".cyan().bold());
+        println!();
+        println!("  Enabled:          {}", format_bool(config.activity_tracking.enabled));
+        println!("  File tracking:    {}", format_bool(config.activity_tracking.file_tracking));
+        println!("  Clipboard:        {}", format_bool(config.activity_tracking.clipboard_tracking));
+        println!("  App tracking:     {}", format_bool(config.activity_tracking.app_tracking));
+        println!("  Editor tracking:  {}", format_bool(config.activity_tracking.editor_tracking));
+        println!();
+        println!("💡 Toggle with: fuku track --start | --stop | --files | --clipboard");
+    }
+    
+    Ok(())
+}
+
+fn format_bool(value: bool) -> colored::ColoredString {
+    if value {
+        "enabled".green()
+    } else {
+        "disabled".dimmed()
+    }
+}
+
+fn format_time(time: SystemTime) -> String {
+    let datetime: chrono::DateTime<chrono::Utc> = time.into();
+    datetime.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
 async fn handle_activity(cli: &Cli, cmd: &ActivityCommand) -> Result<()> {
