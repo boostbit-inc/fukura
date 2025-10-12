@@ -29,6 +29,8 @@ pub struct DaemonConfig {
     pub enable_clipboard_monitoring: bool,
     pub enable_process_monitoring: bool,
     pub error_threshold: f64,
+    pub max_commands_per_session: usize,  // NEW: Limit commands to prevent memory issues
+    pub enable_activity_tracking: bool,   // NEW: Enable comprehensive activity tracking
 }
 
 impl Default for DaemonConfig {
@@ -37,9 +39,11 @@ impl Default for DaemonConfig {
             monitor_interval: Duration::from_secs(10), // Reduced frequency for better performance
             session_timeout: Duration::from_secs(600), // 10 minutes - longer timeout
             max_sessions: 50,                          // Reduced for better memory usage
-            enable_clipboard_monitoring: false,
-            enable_process_monitoring: true,
+            enable_clipboard_monitoring: false,        // Off by default for privacy
+            enable_process_monitoring: false,          // Off by default for performance
             error_threshold: 0.7,
+            max_commands_per_session: 1000,           // Limit to 1000 commands per session
+            enable_activity_tracking: false,          // Off by default until explicitly enabled
         }
     }
 }

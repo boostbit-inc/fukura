@@ -1,6 +1,11 @@
+pub mod activity;
+pub mod activity_monitor;
+pub mod activity_storage;
 pub mod browser;
 pub mod cli;
 pub mod config;
+pub mod file_watcher;
+pub mod performance;
 pub mod config_cmd;
 pub mod daemon;
 pub mod daemon_service;
