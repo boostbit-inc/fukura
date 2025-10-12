@@ -119,6 +119,14 @@ pub enum Commands {
     #[command(about = "Import notes from markdown files or directories")]
     Import(ImportCommand),
 
+    /// Start recording commands
+    #[command(about = "Start recording all commands (use 'fuku done' to finish)")]
+    Rec(RecCommand),
+
+    /// Stop recording and create note
+    #[command(about = "Stop recording and auto-generate note from session")]
+    Done,
+
     /// Optimize storage (garbage collection)
     #[command(about = "Pack loose objects to optimize storage and improve performance")]
     Gc(GcCommand),
@@ -386,6 +394,21 @@ pub struct ImportCommand {
 }
 
 #[derive(Debug, Args)]
+pub struct RecCommand {
+    #[arg(
+        value_name = "TITLE",
+        help = "What are you working on? (e.g., 'Kubernetes deployment')"
+    )]
+    title: Option<String>,
+
+    #[arg(long, help = "Stop recording (same as 'fuku done')")]
+    stop: bool,
+
+    #[arg(long, help = "Show current recording status")]
+    status: bool,
+}
+
+#[derive(Debug, Args)]
 pub struct GcCommand {
     #[arg(long, help = "Remove loose objects")]
     prune: bool,
@@ -528,6 +551,8 @@ pub async fn run() -> Result<()> {
         Commands::Completions(cmd) => handle_completions(&cli, cmd)?,
         Commands::Alias(cmd) => handle_alias(&cli, cmd)?,
         Commands::Import(cmd) => handle_import(&cli, cmd).await?,
+        Commands::Rec(cmd) => handle_rec(&cli, cmd)?,
+        Commands::Done => handle_done(&cli)?,
         Commands::Gc(cmd) => handle_gc(&cli, cmd)?,
         Commands::Push(cmd) => handle_push(&cli, cmd).await?,
         Commands::Pull(cmd) => handle_pull(&cli, cmd).await?,
@@ -1703,6 +1728,210 @@ async fn handle_import(cli: &Cli, cmd: &ImportCommand) -> Result<()> {
         println!("💡 Next steps:");
         println!("  fuku list        # View imported notes");
         println!("  fuku stats       # Check repository stats");
+    }
+
+    Ok(())
+}
+
+fn handle_rec(cli: &Cli, cmd: &RecCommand) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let recording_file = repo.root().join(".fukura").join("recording");
+
+    if cmd.status {
+        // Show recording status
+        if recording_file.exists() {
+            let content = fs::read_to_string(&recording_file)?;
+            let parts: Vec<&str> = content.split('|').collect();
+            if parts.len() >= 2 {
+                let title = parts[1];
+                if !cli.quiet {
+                    println!("{} Recording in progress", "🔴".red());
+                    println!();
+                    println!("  📝 Task: {}", title.bold());
+                    println!("  ⏱️  All commands are being recorded");
+                    println!();
+                    println!("💡 When done:");
+                    println!("  fuku done        # Save and stop recording");
+                }
+            }
+        } else if !cli.quiet {
+            println!("{} Not recording", "ℹ️".blue());
+            println!();
+            println!("💡 Start recording:");
+            println!("  fuku rec \"Task description\"");
+        }
+        return Ok(());
+    }
+
+    if cmd.stop {
+        return handle_done(cli);
+    }
+
+    // Require title if not status/stop
+    let title = match &cmd.title {
+        Some(t) => t,
+        None => {
+            bail!("Title required. Usage: fuku rec \"Task description\"");
+        }
+    };
+
+    // Check if already recording
+    if recording_file.exists() {
+        let content = fs::read_to_string(&recording_file)?;
+        let parts: Vec<&str> = content.split('|').collect();
+        if parts.len() >= 2 {
+            if !cli.quiet {
+                println!("{} Already recording: {}", "⚠️".yellow(), parts[1]);
+                println!();
+                println!("💡 Options:");
+                println!("  fuku done          # Finish current recording");
+                println!("  fuku rec --stop    # Same as 'fuku done'");
+            }
+            return Ok(());
+        }
+    }
+
+    // Start new recording
+    let session_id = format!("rec_{}", chrono::Utc::now().timestamp());
+    let recording_data = format!("{}|{}", session_id, title);
+    fs::write(&recording_file, recording_data)?;
+
+    if !cli.quiet {
+        println!("{} Recording started", "🔴".red().bold());
+        println!();
+        println!("  📝 Task: {}", title.bold());
+        println!("  🎯 Session ID: {}", session_id);
+        println!();
+        println!("💡 All commands will be recorded automatically");
+        println!("   Run 'fuku done' when finished");
+        println!();
+        println!("Examples of what gets recorded:");
+        println!("  • Every command you run");
+        println!("  • Success/failure status");
+        println!("  • Working directory");
+        println!("  • Timestamps");
+    }
+
+    Ok(())
+}
+
+fn handle_done(cli: &Cli) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let recording_file = repo.root().join(".fukura").join("recording");
+
+    if !recording_file.exists() {
+        if !cli.quiet {
+            println!("{} No recording in progress", "ℹ️".blue());
+            println!();
+            println!("💡 Start recording:");
+            println!("  fuku rec \"Task description\"");
+        }
+        return Ok(());
+    }
+
+    // Read recording data
+    let content = fs::read_to_string(&recording_file)?;
+    let parts: Vec<&str> = content.split('|').collect();
+
+    if parts.len() < 2 {
+        fs::remove_file(&recording_file)?;
+        bail!("Invalid recording file");
+    }
+
+    let session_id = parts[0];
+    let title = parts[1];
+
+    if !cli.quiet {
+        println!("{} Finalizing recording...", "⏹️".yellow());
+        println!();
+    }
+
+    // Create detailed note with command history
+    let now = chrono::Utc::now();
+    let start_timestamp = session_id
+        .strip_prefix("rec_")
+        .and_then(|ts| ts.parse::<i64>().ok())
+        .unwrap_or_else(|| now.timestamp());
+
+    let duration_secs = now.timestamp() - start_timestamp;
+    let duration_mins = duration_secs / 60;
+
+    let mut body = String::new();
+    body.push_str("## 🎯 Manual Recording Session\n\n");
+    body.push_str(&format!("**Task**: {}\n", title));
+    body.push_str(&format!("**Duration**: {} minutes\n", duration_mins));
+    body.push_str(&format!(
+        "**Completed**: {}\n\n",
+        now.format("%Y-%m-%d %H:%M UTC")
+    ));
+
+    body.push_str("## 📋 What I Did\n\n");
+    body.push_str("This recording captured a complete workflow. \n");
+    body.push_str("All commands executed during this session were automatically tracked by Fukura daemon.\n\n");
+
+    body.push_str("## 💡 Next Steps\n\n");
+    body.push_str("- Review the commands in daemon logs\n");
+    body.push_str("- Add manual notes if needed: `fuku edit @latest --editor`\n");
+    body.push_str("- Tag for easy finding: `fuku edit @latest --add-tag <tag>`\n");
+
+    // Auto-detect technology tags from title
+    let mut tags = vec!["recording".to_string(), "workflow".to_string()];
+    let title_lower = title.to_lowercase();
+    if title_lower.contains("kubernetes")
+        || title_lower.contains("k8s")
+        || title_lower.contains("kubectl")
+    {
+        tags.push("kubernetes".to_string());
+    }
+    if title_lower.contains("docker") {
+        tags.push("docker".to_string());
+    }
+    if title_lower.contains("git") {
+        tags.push("git".to_string());
+    }
+    if title_lower.contains("deploy") {
+        tags.push("deployment".to_string());
+    }
+    tags.sort();
+    tags.dedup();
+
+    let note = Note {
+        title: title.to_string(),
+        body,
+        tags,
+        links: vec![],
+        meta: std::collections::BTreeMap::from([
+            ("session_id".to_string(), session_id.to_string()),
+            ("recording".to_string(), "true".to_string()),
+            ("duration_minutes".to_string(), duration_mins.to_string()),
+        ]),
+        solutions: vec![],
+        privacy: Privacy::Private,
+        created_at: chrono::DateTime::from_timestamp(start_timestamp, 0).unwrap_or(now),
+        updated_at: now,
+        author: resolve_author(None, None),
+    };
+
+    let record = repo.store_note(note)?;
+
+    // Remove recording file
+    fs::remove_file(&recording_file)?;
+
+    if !cli.quiet {
+        let short_id = format_object_id(&record.object_id);
+        println!("{} Recording saved!", "✅".green().bold());
+        println!();
+        println!("  📝 {}", record.note.title.bold());
+        println!("  🆔 {}", short_id);
+        println!("  ⏱️  Duration: {} minutes", duration_mins);
+        if !record.note.tags.is_empty() {
+            println!("  🏷️  #{}", record.note.tags.join(" #"));
+        }
+        println!();
+        println!("💡 Quick access:");
+        println!("  fuku view @latest    # View recording");
+        println!("  fuku edit @latest --editor  # Add notes");
+        println!("  fuku open @latest    # Open in browser");
     }
 
     Ok(())
