@@ -202,7 +202,11 @@ pub struct AddCommand {
     #[arg(long, help = "Read from stdin")]
     stdin: bool,
 
-    #[arg(long, short = 'q', help = "Quick mode: prompts for title and body interactively")]
+    #[arg(
+        long,
+        short = 'q',
+        help = "Quick mode: prompts for title and body interactively"
+    )]
     quick: bool,
 
     #[arg(
@@ -347,9 +351,12 @@ pub struct ServeCommand {
 
 #[derive(Debug, Args)]
 pub struct CompletionsCommand {
-    #[arg(value_name = "SHELL", help = "Shell type (bash, zsh, fish, powershell)")]
+    #[arg(
+        value_name = "SHELL",
+        help = "Shell type (bash, zsh, fish, powershell)"
+    )]
     shell: String,
-    
+
     #[arg(long, help = "Output to stdout instead of installing")]
     stdout: bool,
 }
@@ -358,10 +365,10 @@ pub struct CompletionsCommand {
 pub struct AliasCommand {
     #[arg(long, help = "Show current aliases")]
     show: bool,
-    
+
     #[arg(long, help = "Setup aliases in shell rc file")]
     setup: bool,
-    
+
     #[arg(long, help = "Remove aliases from shell rc file")]
     remove: bool,
 }
@@ -370,10 +377,10 @@ pub struct AliasCommand {
 pub struct ImportCommand {
     #[arg(value_name = "PATH", help = "File or directory to import from")]
     path: PathBuf,
-    
+
     #[arg(long, help = "Default tag to add to all imported notes")]
     tag: Option<String>,
-    
+
     #[arg(long, help = "Dry run - show what would be imported")]
     dry_run: bool,
 }
@@ -628,28 +635,28 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
 async fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
     let repo = open_repo(cli)?;
     let now = chrono::Utc::now();
-    
+
     // Quick mode: interactive prompts
     if cmd.quick {
         let title: String = Input::with_theme(&ColorfulTheme::default())
             .with_prompt("📝 Title")
             .interact_text()?;
-        
+
         let body: String = Input::with_theme(&ColorfulTheme::default())
             .with_prompt("📄 Body (short description)")
             .interact_text()?;
-        
+
         if title.trim().is_empty() {
             bail!("Title cannot be empty");
         }
         if body.trim().is_empty() {
             bail!("Body cannot be empty");
         }
-        
+
         let tags = normalize_tags(cmd.tags.clone());
         let meta = parse_meta(cmd.meta.clone())?;
         let author = resolve_author(cmd.author.as_deref(), cmd.email.as_deref());
-        
+
         let note = Note {
             title: title.trim().to_string(),
             body: body.trim().to_string(),
@@ -662,9 +669,9 @@ async fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
             updated_at: now,
             author,
         };
-        
+
         let record = repo.store_note(note)?;
-        
+
         if !cli.quiet {
             let short_id = format_object_id(&record.object_id);
             println!(
@@ -680,7 +687,7 @@ async fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
         }
         return Ok(());
     }
-    
+
     let title = match &cmd.title {
         Some(t) => t.clone(),
         None => Input::with_theme(&ColorfulTheme::default())
@@ -814,9 +821,7 @@ fn handle_search(cli: &Cli, cmd: &SearchCommand) -> Result<()> {
     render_search_table(&hits);
     if !hits.is_empty() {
         let short_id = format_object_id(&hits[0].object_id);
-        println!(
-            "💡 Next: fuku view @1 (or fuku open @1 to open in browser)"
-        );
+        println!("💡 Next: fuku view @1 (or fuku open @1 to open in browser)");
         println!("   Copy ID: {}", short_id);
     }
     Ok(())
@@ -825,7 +830,7 @@ fn handle_search(cli: &Cli, cmd: &SearchCommand) -> Result<()> {
 fn handle_list(cli: &Cli) -> Result<()> {
     let repo = open_repo(cli)?;
     let hits = repo.search("", 100, SearchSort::Updated)?;
-    
+
     if hits.is_empty() {
         println!("{} No notes yet", "ℹ️".blue());
         println!();
@@ -834,11 +839,11 @@ fn handle_list(cli: &Cli) -> Result<()> {
         println!("  • Full add:  fuku add --title 'My Note' --body 'Content'");
         return Ok(());
     }
-    
+
     println!("{} All Notes ({} total)", "📋".cyan(), hits.len());
     println!();
     render_search_table(&hits);
-    
+
     if !hits.is_empty() {
         let short_id = format_object_id(&hits[0].object_id);
         println!();
@@ -907,11 +912,7 @@ fn search_all_repos(
     if let Some(first) = all_hits.first() {
         if let Some(repo_path) = repo_map.get(&first.object_id) {
             let short_id = format_object_id(&first.object_id);
-            println!(
-                "💡 View: fuku view {} --repo {}",
-                short_id,
-                repo_path
-            );
+            println!("💡 View: fuku view {} --repo {}", short_id, repo_path);
         }
     }
 
@@ -1014,7 +1015,7 @@ fn handle_edit(cli: &Cli, cmd: &EditCommand) -> Result<()> {
     let repo = open_repo(cli)?;
     let resolved = repo.resolve_object_id(&cmd.id)?;
     let mut record = repo.load_note(&resolved)?;
-    
+
     let mut modified = false;
 
     // Update title
@@ -1065,7 +1066,9 @@ fn handle_edit(cli: &Cli, cmd: &EditCommand) -> Result<()> {
     if !modified {
         if !cli.quiet {
             println!("{} No changes made", "ℹ️".blue());
-            println!("💡 Use --title, --body, --add-tag, --remove-tag, or --editor to make changes");
+            println!(
+                "💡 Use --title, --body, --add-tag, --remove-tag, or --editor to make changes"
+            );
         }
         return Ok(());
     }
@@ -1166,26 +1169,23 @@ fn handle_open(cli: &Cli, cmd: &OpenCommand) -> Result<()> {
 fn handle_stats(cli: &Cli) -> Result<()> {
     let repo = open_repo(cli)?;
     let config = repo.config()?;
-    
+
     // Get all notes
     let all_notes = repo.list_all_notes()?;
     let total_notes = all_notes.len();
-    
+
     // Collect tags
     let all_tags = repo.collect_tags().unwrap_or_default();
-    
+
     // Find last updated note
-    let last_updated = all_notes
-        .iter()
-        .map(|n| n.note.updated_at)
-        .max();
-    
+    let last_updated = all_notes.iter().map(|n| n.note.updated_at).max();
+
     // Calculate storage size
     let objects_dir = repo.objects_dir();
     let packs_dir = repo.pack_dir();
     let mut total_size = 0u64;
     let mut loose_count = 0usize;
-    
+
     if objects_dir.exists() {
         for entry in walkdir::WalkDir::new(&objects_dir).max_depth(3) {
             if let Ok(entry) = entry {
@@ -1198,7 +1198,7 @@ fn handle_stats(cli: &Cli) -> Result<()> {
             }
         }
     }
-    
+
     let mut pack_count = 0usize;
     if packs_dir.exists() {
         for entry in fs::read_dir(&packs_dir)? {
@@ -1212,7 +1212,7 @@ fn handle_stats(cli: &Cli) -> Result<()> {
             }
         }
     }
-    
+
     // Format size
     let size_str = if total_size < 1024 {
         format!("{}B", total_size)
@@ -1221,13 +1221,21 @@ fn handle_stats(cli: &Cli) -> Result<()> {
     } else {
         format!("{:.1}MB", total_size as f64 / (1024.0 * 1024.0))
     };
-    
+
     if !cli.quiet {
         println!("{}", "📊 Repository Statistics".bold().cyan());
         println!();
-        println!("  {} Total notes: {}", "".yellow(), total_notes.to_string().bold());
-        println!("  {} Tags: {} unique", "🏷️".yellow(), all_tags.len().to_string().bold());
-        
+        println!(
+            "  {} Total notes: {}",
+            "".yellow(),
+            total_notes.to_string().bold()
+        );
+        println!(
+            "  {} Tags: {} unique",
+            "🏷️".yellow(),
+            all_tags.len().to_string().bold()
+        );
+
         if let Some(last_updated) = last_updated {
             let time_ago = chrono::Utc::now() - last_updated;
             let ago_str = if time_ago.num_minutes() < 60 {
@@ -1239,12 +1247,12 @@ fn handle_stats(cli: &Cli) -> Result<()> {
             };
             println!("  {} Last updated: {}", "🕒".yellow(), ago_str.bold());
         }
-        
+
         println!();
         println!("  {} Storage: {}", "💾".yellow(), size_str.bold());
         println!("    • Loose objects: {}", loose_count);
         println!("    • Pack files: {}", pack_count);
-        
+
         println!();
         println!("  {} Configuration:", "⚙️".yellow());
         if let Some(remote) = &config.default_remote {
@@ -1252,20 +1260,21 @@ fn handle_stats(cli: &Cli) -> Result<()> {
         } else {
             println!("    • Remote: {}", "not set".dimmed());
         }
-        println!("    • Auto-sync: {}", 
-            if config.auto_sync.unwrap_or(false) { 
-                "enabled".green() 
-            } else { 
-                "disabled".red() 
+        println!(
+            "    • Auto-sync: {}",
+            if config.auto_sync.unwrap_or(false) {
+                "enabled".green()
+            } else {
+                "disabled".red()
             }
         );
-        
+
         if config.daemon_enabled.unwrap_or(false) {
             println!("    • Daemon: {}", "enabled".green());
         } else {
             println!("    • Daemon: {}", "disabled".dimmed());
         }
-        
+
         println!();
         println!("💡 Tips:");
         if loose_count > 10 {
@@ -1275,7 +1284,7 @@ fn handle_stats(cli: &Cli) -> Result<()> {
             println!("  • Set remote: 'fuku config remote --set <url>'");
         }
     }
-    
+
     Ok(())
 }
 
@@ -1285,7 +1294,10 @@ fn handle_completions(cli: &Cli, cmd: &CompletionsCommand) -> Result<()> {
         "zsh" => Shell::Zsh,
         "fish" => Shell::Fish,
         "powershell" | "pwsh" => Shell::PowerShell,
-        _ => bail!("Unsupported shell: {}. Choose from: bash, zsh, fish, powershell", cmd.shell),
+        _ => bail!(
+            "Unsupported shell: {}. Choose from: bash, zsh, fish, powershell",
+            cmd.shell
+        ),
     };
 
     if cmd.stdout {
@@ -1298,19 +1310,30 @@ fn handle_completions(cli: &Cli, cmd: &CompletionsCommand) -> Result<()> {
     // Install completions
     let home = std::env::var("HOME").context("HOME environment variable not set")?;
     let home_path = std::path::PathBuf::from(&home);
-    
+
     let (install_path, instructions) = match shell {
         Shell::Bash => {
             let path = home_path.join(".bash_completion.d");
             fs::create_dir_all(&path)?;
             let file = path.join("fuku");
-            (file, format!("Add 'source {}' to your ~/.bashrc", path.join("fuku").display()))
+            (
+                file,
+                format!(
+                    "Add 'source {}' to your ~/.bashrc",
+                    path.join("fuku").display()
+                ),
+            )
         }
         Shell::Zsh => {
             let path = home_path.join(".zsh").join("completions");
             fs::create_dir_all(&path)?;
             let file = path.join("_fuku");
-            (file, format!("Add 'fpath=(~/.zsh/completions $fpath)' to your ~/.zshrc and run 'compinit'"))
+            (
+                file,
+                format!(
+                    "Add 'fpath=(~/.zsh/completions $fpath)' to your ~/.zshrc and run 'compinit'"
+                ),
+            )
         }
         Shell::Fish => {
             let path = home_path.join(".config").join("fish").join("completions");
@@ -1396,7 +1419,10 @@ fn handle_alias(cli: &Cli, cmd: &AliasCommand) -> Result<()> {
         let lines: Vec<&str> = content
             .lines()
             .filter(|line| {
-                !line.contains("# Fukura aliases") && !aliases.iter().any(|(a, _)| line.contains(&format!("alias {}=", a)))
+                !line.contains("# Fukura aliases")
+                    && !aliases
+                        .iter()
+                        .any(|(a, _)| line.contains(&format!("alias {}=", a)))
             })
             .collect();
 
@@ -1437,7 +1463,7 @@ fn handle_alias(cli: &Cli, cmd: &AliasCommand) -> Result<()> {
         }
 
         let mut alias_lines = vec!["\n# Fukura aliases".to_string()];
-        
+
         for (alias, command) in &aliases {
             let alias_line = if shell_name == "fish" {
                 format!("alias {} '{}'", alias, command)
@@ -1498,9 +1524,9 @@ fn handle_alias(cli: &Cli, cmd: &AliasCommand) -> Result<()> {
 async fn handle_import(cli: &Cli, cmd: &ImportCommand) -> Result<()> {
     let repo = open_repo(cli)?;
     let config = repo.config()?;
-    
+
     let mut files_to_import = Vec::new();
-    
+
     if cmd.path.is_file() {
         files_to_import.push(cmd.path.clone());
     } else if cmd.path.is_dir() {
@@ -1524,14 +1550,22 @@ async fn handle_import(cli: &Cli, cmd: &ImportCommand) -> Result<()> {
 
     if files_to_import.is_empty() {
         if !cli.quiet {
-            println!("{} No markdown files found in {}", "ℹ️".blue(), cmd.path.display());
+            println!(
+                "{} No markdown files found in {}",
+                "ℹ️".blue(),
+                cmd.path.display()
+            );
         }
         return Ok(());
     }
 
     if cmd.dry_run {
         if !cli.quiet {
-            println!("{} Dry run - would import {} files:", "🔍".cyan(), files_to_import.len());
+            println!(
+                "{} Dry run - would import {} files:",
+                "🔍".cyan(),
+                files_to_import.len()
+            );
             println!();
             for file in &files_to_import {
                 println!("  📄 {}", file.display());
@@ -1541,7 +1575,11 @@ async fn handle_import(cli: &Cli, cmd: &ImportCommand) -> Result<()> {
     }
 
     if !cli.quiet {
-        println!("{} Importing {} files...", "📥".blue(), files_to_import.len());
+        println!(
+            "{} Importing {} files...",
+            "📥".blue(),
+            files_to_import.len()
+        );
         println!();
     }
 
@@ -1594,10 +1632,12 @@ async fn handle_import(cli: &Cli, cmd: &ImportCommand) -> Result<()> {
         if let Some(default_tag) = &cmd.tag {
             tags.push(default_tag.clone());
         }
-        
+
         // Look for tags in format #tag or tags: tag1, tag2
         for line in lines.iter() {
-            if line.to_lowercase().starts_with("tags:") || line.to_lowercase().starts_with("labels:") {
+            if line.to_lowercase().starts_with("tags:")
+                || line.to_lowercase().starts_with("labels:")
+            {
                 let tag_str = line.split(':').nth(1).unwrap_or("");
                 for tag in tag_str.split(',') {
                     let cleaned = tag.trim().trim_matches('#').to_lowercase();
@@ -1631,7 +1671,7 @@ async fn handle_import(cli: &Cli, cmd: &ImportCommand) -> Result<()> {
                     let short_id = format_object_id(&record.object_id);
                     println!("  {} Imported: {} ({})", "✓".green(), title, short_id);
                 }
-                
+
                 // Auto-sync if enabled
                 if config.auto_sync.unwrap_or(false) {
                     if let Some(remote) = &config.default_remote {
@@ -1792,16 +1832,16 @@ fn handle_config(cli: &Cli, cmd: &ConfigCommand) -> Result<()> {
         ConfigCommand::Show => {
             let repo = open_repo(cli)?;
             let config = repo.config()?;
-            
+
             if !cli.quiet {
                 println!("{}", "📝 Configuration".bold().cyan());
                 println!();
-                
+
                 // Repository info
                 println!("  {} Repository:", "📁".yellow());
                 println!("    • Path: {}", repo.root().display());
                 println!();
-                
+
                 // Remote configuration
                 println!("  {} Remote:", "🌐".yellow());
                 if let Some(remote) = &config.default_remote {
@@ -1809,28 +1849,30 @@ fn handle_config(cli: &Cli, cmd: &ConfigCommand) -> Result<()> {
                 } else {
                     println!("    • URL: {}", "not configured".dimmed());
                 }
-                
+
                 // Sync configuration
-                println!("    • Auto-sync: {}", 
-                    if config.auto_sync.unwrap_or(false) { 
-                        "enabled".green() 
-                    } else { 
-                        "disabled".red() 
+                println!(
+                    "    • Auto-sync: {}",
+                    if config.auto_sync.unwrap_or(false) {
+                        "enabled".green()
+                    } else {
+                        "disabled".red()
                     }
                 );
                 println!();
-                
+
                 // Daemon configuration
                 println!("  {} Daemon:", "⚙️".yellow());
-                println!("    • Enabled: {}", 
-                    if config.daemon_enabled.unwrap_or(false) { 
-                        "yes".green() 
-                    } else { 
-                        "no".dimmed() 
+                println!(
+                    "    • Enabled: {}",
+                    if config.daemon_enabled.unwrap_or(false) {
+                        "yes".green()
+                    } else {
+                        "no".dimmed()
                     }
                 );
                 println!();
-                
+
                 // Redaction rules
                 println!("  {} Redaction Rules:", "🔒".yellow());
                 if config.redaction_overrides.is_empty() {
@@ -1841,7 +1883,7 @@ fn handle_config(cli: &Cli, cmd: &ConfigCommand) -> Result<()> {
                     }
                 }
                 println!();
-                
+
                 println!("💡 Commands:");
                 if config.default_remote.is_none() {
                     println!("  • Set remote: fuku config remote --set <url>");
@@ -1849,7 +1891,7 @@ fn handle_config(cli: &Cli, cmd: &ConfigCommand) -> Result<()> {
                 println!("  • Enable auto-sync: fuku sync --enable-auto");
                 println!("  • Add redaction: fuku config redact --set 'api_key=(?i)api[_-]?key\\s*[:=]\\s*['\"]?([a-zA-Z0-9]+)'");
             }
-            
+
             Ok(())
         }
         ConfigCommand::Remote(remote) => {
