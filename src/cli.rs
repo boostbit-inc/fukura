@@ -711,8 +711,7 @@ pub async fn run() -> Result<()> {
         Commands::Rec(cmd) => {
             if cmd.from_time.is_some() {
                 // Time-based recording requires async
-                let rt = tokio::runtime::Runtime::new()?;
-                rt.block_on(async { handle_rec_time_based(&cli, cmd).await })?;
+                handle_rec_time_based(&cli, cmd).await?;
             } else {
                 handle_rec(&cli, cmd)?;
             }
@@ -749,141 +748,6 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
         println!();
     }
 
-    if cmd.stop {
-        return handle_done(cli);
-    }
-
-    // Require title if not status/stop
-    let title = match &cmd.title {
-        Some(t) => t,
-        None => {
-            bail!("Title required. Usage: fuku rec \"Task description\" [TIME_AGO]");
-        }
-    };
-
-    // Check if already recording
-    if recording_file.exists() {
-        let content = fs::read_to_string(&recording_file)?;
-        let parts: Vec<&str> = content.split('|').collect();
-        if parts.len() >= 2 {
-            if !cli.quiet {
-                println!("{} Already recording: {}", "⚠️".yellow(), parts[1]);
-                println!();
-                println!("💡 Options:");
-                println!("  fuku done          # Finish current recording");
-                println!("  fuku rec --stop    # Same as 'fuku done'");
-            }
-            return Ok(());
-        }
-    }
-
-    // Handle time-based recording
-    if let Some(time_expr) = &cmd.from_time {
-        return handle_time_based_rec(cli, title, time_expr).await;
-    }
-
-    // Start new recording (normal case)
-    let session_id = format!("rec_{}", chrono::Utc::now().timestamp());
-    let recording_data = format!("{}|{}", session_id, title);
-    fs::write(&recording_file, recording_data)?;
-
-    if !cli.quiet {
-        println!("{} Recording started", "🔴".red().bold());
-        println!();
-        println!("  📝 Task: {}", title.bold());
-        println!("  🎯 Session ID: {}", session_id);
-        println!();
-        println!("💡 All commands will be recorded automatically");
-        println!("   Run 'fuku done' when finished");
-        println!();
-        println!("Examples of what gets recorded:");
-        println!("  • Every command you run");
-        println!("  • Success/failure status");
-        println!("  • Working directory");
-        println!("  • Timestamps");
-    }
-
-    Ok(())
-}
-
-async fn handle_time_based_rec(cli: &Cli, title: &str, time_expr: &str) -> Result<()> {
-    let repo = open_repo(cli)?;
-    
-    // Load configuration
-    let config_path = repo.root().join(".fukura").join("config.toml");
-    let config = crate::config::FukuraConfig::load(&config_path)?;
-    
-    // Parse time expression
-    let target_time = parse_time_ago(time_expr)
-        .with_context(|| format!("Invalid time format: '{}'", time_expr))?;
-    
-    // Validate against configuration limits
-    validate_time_ago(
-        target_time,
-        config.recording.max_lookback_hours,
-        config.recording.min_lookback_minutes,
-    ).with_context(|| "Time validation failed")?;
-
-    // Check if daemon is running
-    let daemon_service = DaemonService::new(repo.root());
-    if !daemon_service.is_running().await {
-        if !cli.quiet {
-            println!("{} Daemon not running. Starting it now...", "ℹ️".yellow());
-        }
-        daemon_service.start_background()?;
-        
-        // Wait a moment for daemon to initialize
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-        
-        if !daemon_service.is_running().await {
-            bail!("Failed to start daemon. Time-based recording requires the daemon to be running.");
-        }
-    }
-
-    if !cli.quiet {
-        println!("{} Searching for commands since {}", "🔍".cyan(), time_expr);
-    }
-
-    // Try to get historical commands from daemon
-    // Note: In a real implementation, you'd need to connect to the daemon via socket
-    // For now, we'll create a placeholder recording file
-    let session_id = format!("time_rec_{}", chrono::Utc::now().timestamp());
-    let recording_data = format!("{}|{}|since:{}", session_id, title, target_time.duration_since(std::time::SystemTime::UNIX_EPOCH)?.as_secs());
-    
-    let recording_file = repo.root().join(".fukura").join("recording");
-    fs::write(&recording_file, recording_data)?;
-
-    if !cli.quiet {
-        println!("{} Time-based recording started", "🔴".red().bold());
-        println!();
-        println!("  📝 Task: {}", title.bold());
-        println!("  ⏰ From: {}", time_expr);
-        println!("  🎯 Session ID: {}", session_id);
-        println!();
-        println!("💡 Commands from {} ago are now included in recording", time_expr);
-        println!("   Continue working and run 'fuku done' when finished");
-    }
-
-    Ok(())
-}
-
-fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
-    let path = if cmd.path == Path::new(".") {
-        std::env::current_dir()?
-    } else {
-        cmd.path.clone()
-    };
-    let repo = FukuraRepo::init(&path, cmd.force)?;
-
-    if !cli.quiet {
-        println!(
-            "{} Initialized Fukura vault at {}",
-            "".bold().cyan(),
-            repo.root().display()
-        );
-        println!();
-    }
-
     // Interactive setup for daemon (unless --no-daemon is specified)
     let start_daemon = if cmd.no_daemon {
         false
@@ -893,7 +757,7 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
         // Ask user interactively
         println!(
             "{} Fukura can automatically capture errors and solutions in the background.",
-            "".cyan()
+            "💡".cyan()
         );
         println!(
             "{} This helps build your knowledge base without manual effort.",
@@ -905,53 +769,31 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
             .interact()?
     };
 
-    if start_daemon {
-        if !cli.quiet {
-            println!("{} Starting automatic error capture daemon...", "".green());
-        }
-
-        // Start daemon in background
-        crate::daemon_service::start_background_daemon(&repo)?;
-
-        // Save daemon preference
-        let mut config = repo.config()?;
-        config.daemon_enabled = Some(true);
-        config.save(&repo.config_path())?;
-
-        if !cli.quiet {
-            println!("{} Automatic error capture is now active!", "".blue());
-        }
-    } else if !cli.quiet {
-        println!(
-            "{} Daemon disabled. Use 'fuku daemon' to start it later.",
-            "".blue()
-        );
-    }
-
-    // Install shell hooks automatically
-    if !cmd.no_hooks {
-        let hook_manager = crate::hooks::HookManager::new(repo.root());
-        if let Err(e) = hook_manager.install_hooks() {
+    if start_daemon && !cmd.no_daemon {
+        use crate::daemon_service::DaemonService;
+        let daemon_service = DaemonService::new(repo.root());
+        if let Err(e) = daemon_service.start_background() {
             if !cli.quiet {
+                println!("{} Failed to start daemon: {}", "⚠️".yellow(), e);
                 println!(
-                    "{} Warning: Could not install shell hooks: {}",
-                    "".yellow(),
-                    e
+                    "{} You can start it later with: fuku start",
+                    "💡".cyan()
                 );
             }
         } else if !cli.quiet {
-            println!("{} Shell hooks installed successfully", "".green());
+            println!("{} Background daemon started", "✓".green());
         }
     }
 
-    if !cli.quiet {
+    // Setup shell hooks (unless --no-hooks is specified)
+    if !cmd.no_hooks && !cli.quiet {
         println!();
-        println!("{} Quick Start Guide:", "".cyan());
-        println!("  • Add a note:        fuku add --title 'Error solution'");
-        println!("  • Search notes:      fuku search 'keyword'");
-        println!("  • Check status:      fuku status");
-        println!("  • Stop/start daemon: fuku stop / fuku start");
-        println!("  • Sync to remote:    fuku sync --enable-auto");
+        println!("{} For best experience, add to your shell profile:", "💡".cyan());
+        println!();
+        println!("  # For Bash/Zsh:");
+        println!("  eval \"$(fuku alias --setup)\"");
+        println!();
+        println!("  # Or run: fuku alias --setup");
     }
 
     Ok(())

@@ -1317,7 +1317,7 @@ impl FukuraDaemon {
 
                 // Send success notification
                 if let Ok(notif) = NotificationManager::new(repo.root()) {
-                    let summary = "Fukura: Problem Solved! 🎉";
+                    let _summary = "Fukura: Problem Solved! 🎉";
                     let body_text = format!(
                         "Error: {}\n\nSolved with {} step(s)\n\nView: fuku view @latest",
                         error.command,
