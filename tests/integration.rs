@@ -107,11 +107,18 @@ fn test_new_features() {
 
     // Test add with quick mode
     let output = Command::new(&binary_path)
-        .args(["add", "--title", "Test Note", "--body", "Test content", "--no-editor"])
+        .args([
+            "add",
+            "--title",
+            "Test Note",
+            "--body",
+            "Test content",
+            "--no-editor",
+        ])
         .current_dir(repo_path)
         .output()
         .expect("Failed to execute add");
-    
+
     assert!(output.status.success());
 
     // Test list command
@@ -120,7 +127,7 @@ fn test_new_features() {
         .current_dir(repo_path)
         .output()
         .expect("Failed to execute list");
-    
+
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Test Note"));
@@ -131,7 +138,7 @@ fn test_new_features() {
         .current_dir(repo_path)
         .output()
         .expect("Failed to execute stats");
-    
+
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Repository Statistics"));
@@ -142,7 +149,7 @@ fn test_new_features() {
         .current_dir(repo_path)
         .output()
         .expect("Failed to execute config show");
-    
+
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Configuration"));
@@ -153,7 +160,7 @@ fn test_new_features() {
         .current_dir(repo_path)
         .output()
         .expect("Failed to execute view @latest");
-    
+
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Test Note"));
@@ -164,6 +171,6 @@ fn test_new_features() {
         .current_dir(repo_path)
         .output()
         .expect("Failed to execute edit");
-    
+
     assert!(output.status.success());
 }
