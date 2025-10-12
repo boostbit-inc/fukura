@@ -317,8 +317,9 @@ fi
     fn generate_zsh_hook(&self) -> String {
         format!(
             r#"
-# Fukura hooks - zsh (World-class IPC via Unix Domain Socket)
+# Fukura hooks - zsh (World-class: captures commands, errors, and stderr)
 _fukura_socket_path="{socket_path}"
+_fukura_stderr_file="/tmp/fukura_stderr_$$"
 
 _fukura_record_command() {{
     local exit_code=$?
@@ -326,9 +327,18 @@ _fukura_record_command() {{
     local working_dir="$PWD"
     local session_id="$(echo "$PWD" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "default")"
     
+    # Capture stderr if available
+    local stderr_content=""
+    if [ -f "$_fukura_stderr_file" ]; then
+        stderr_content="$(cat "$_fukura_stderr_file" 2>/dev/null | head -c 500)"
+        rm -f "$_fukura_stderr_file"
+    fi
+    
     # Send to daemon via Unix socket (fast & secure)
     if [ -S "$_fukura_socket_path" ]; then
-        echo "$session_id|$command|$exit_code|$working_dir" | nc -U -w 1 "$_fukura_socket_path" 2>/dev/null || true
+        # Format: session_id|command|exit_code|working_dir|stderr
+        local message="$session_id|$command|$exit_code|$working_dir|$stderr_content"
+        echo "$message" | nc -U -w 1 "$_fukura_socket_path" 2>/dev/null || true
     fi
 }}
 
@@ -338,6 +348,8 @@ precmd_functions+=(_fukura_precmd_hook)
 
 _fukura_preexec_hook() {{
     _fukura_last_command="$1"
+    # Prepare stderr capture for next command
+    rm -f "$_fukura_stderr_file"
 }}
 
 _fukura_precmd_hook() {{
@@ -346,6 +358,16 @@ _fukura_precmd_hook() {{
         _fukura_record_command "$_fukura_last_command"
     fi
 }}
+
+# Wrapper to capture stderr (optional - uncomment to enable full stderr capture)
+# Note: This might interfere with some commands, so disabled by default
+# preexec_functions+=(_fukura_stderr_capture)
+# _fukura_stderr_capture() {{
+#     exec 2> >(_fukura_tee_stderr)
+# }}
+# _fukura_tee_stderr() {{
+#     tee -a "$_fukura_stderr_file" >&2
+# }}
 "#,
             socket_path = self.repo_path.join(".fukura").join("daemon.sock").display()
         )

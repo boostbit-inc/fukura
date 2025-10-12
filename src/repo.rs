@@ -335,7 +335,7 @@ impl FukuraRepo {
                         self.search("", 100, SearchSort::Updated)?
                     }
                 };
-                
+
                 if index > 0 && index <= hits.len() {
                     return Ok(hits[index - 1].object_id.clone());
                 }
@@ -413,8 +413,8 @@ impl FukuraRepo {
             }
         }
         ensure!(
-            !matches.is_empty(), 
-            "No object matching '{}'\n💡 Tip: Use 'fuku search' to list available notes, or '@latest' for the most recent", 
+            !matches.is_empty(),
+            "No object matching '{}'\n💡 Tip: Use 'fuku search' to list available notes, or '@latest' for the most recent",
             candidate
         );
         ensure!(
