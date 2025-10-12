@@ -114,6 +114,45 @@ impl FukuraDaemon {
         })
     }
 
+    /// Get commands from all sessions since a specific time
+    pub async fn get_commands_since(&self, since: SystemTime) -> Vec<CommandEntry> {
+        let sessions = self.sessions.read().await;
+        let mut commands = Vec::new();
+        
+        for session in sessions.values() {
+            for command in &session.commands {
+                if command.timestamp >= since {
+                    commands.push(command.clone());
+                }
+            }
+        }
+        
+        // Sort by timestamp
+        commands.sort_by_key(|cmd| cmd.timestamp);
+        commands
+    }
+
+    /// Create a recording session from historical commands
+    pub async fn create_recording_from_time(&self, since: SystemTime, title: String) -> Result<()> {
+        let commands = self.get_commands_since(since).await;
+        
+        if commands.is_empty() {
+            anyhow::bail!("No commands found since the specified time");
+        }
+        
+        // Create recording file with historical commands
+        let recording_file = self.repo_path.join(".fukura").join("recording");
+        let timestamp = since.duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
+        let content = format!("{}|{}|{}", timestamp, title, 
+            commands.iter()
+                .map(|cmd| format!("{}:{}", cmd.timestamp.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs(), cmd.command))
+                .collect::<Vec<_>>()
+                .join("\n"));
+        
+        std::fs::write(&recording_file, content)?;
+        Ok(())
+    }
+
     /// Start the daemon
     pub async fn start(&self) -> Result<()> {
         info!("Starting Fukura daemon...");

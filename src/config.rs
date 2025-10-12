@@ -16,6 +16,37 @@ pub struct FukuraConfig {
     pub auto_sync: Option<bool>,
     #[serde(default)]
     pub daemon_enabled: Option<bool>,
+    #[serde(default)]
+    pub recording: RecordingConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecordingConfig {
+    /// Maximum time to look back for time-based recording (in hours)
+    #[serde(default = "RecordingConfig::default_max_lookback_hours")]
+    pub max_lookback_hours: u32,
+    /// Minimum time to look back for time-based recording (in minutes)  
+    #[serde(default = "RecordingConfig::default_min_lookback_minutes")]
+    pub min_lookback_minutes: u32,
+}
+
+impl Default for RecordingConfig {
+    fn default() -> Self {
+        Self {
+            max_lookback_hours: 3,
+            min_lookback_minutes: 1,
+        }
+    }
+}
+
+impl RecordingConfig {
+    fn default_max_lookback_hours() -> u32 {
+        3
+    }
+    
+    fn default_min_lookback_minutes() -> u32 {
+        1
+    }
 }
 
 impl FukuraConfig {
