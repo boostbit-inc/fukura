@@ -325,7 +325,16 @@ _fukura_record_command() {{
     local exit_code=$?
     local command="$1"
     local working_dir="$PWD"
-    local session_id="$(echo "$PWD" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "default")"
+    
+    # Check if recording mode is active
+    local recording_file="$working_dir/.fukura/recording"
+    if [ -f "$recording_file" ]; then
+        # Use recording session ID
+        local session_id="$(cat "$recording_file" | cut -d'|' -f1)"
+    else
+        # Use default session ID based on directory
+        local session_id="$(echo "$PWD" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "default")"
+    fi
     
     # Capture stderr if available
     local stderr_content=""

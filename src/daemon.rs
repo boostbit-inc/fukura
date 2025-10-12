@@ -834,6 +834,12 @@ impl FukuraDaemon {
         Ok(session_id)
     }
 
+    /// Get session data for manual recording
+    pub async fn get_session_data(&self, session_id: &str) -> Result<Option<ActiveSession>> {
+        let sessions = self.sessions.read().await;
+        Ok(sessions.get(session_id).cloned())
+    }
+
     /// End a session and generate summary
     pub async fn end_session(&self, session_id: &str, success: bool) -> Result<Option<Note>> {
         let mut sessions = self.sessions.write().await;
