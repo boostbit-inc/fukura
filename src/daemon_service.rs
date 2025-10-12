@@ -22,10 +22,48 @@ impl DaemonService {
 
     /// Start the daemon as a background service
     pub fn start_background(&self) -> Result<()> {
+        // Check if already running using sync version
+        if self.is_running_sync() {
+            return Err(anyhow::anyhow!("Daemon already running"));
+        }
+
         if cfg!(target_os = "windows") {
             self.start_windows_service()
         } else {
             self.start_unix_service()
+        }
+    }
+
+    /// Synchronous version of is_running for use in non-async contexts
+    fn is_running_sync(&self) -> bool {
+        let pid_file = self.get_pid_file_path();
+
+        if !pid_file.exists() {
+            return false;
+        }
+
+        let pid = match std::fs::read_to_string(&pid_file) {
+            Ok(pid) => pid.trim().to_string(),
+            Err(_) => return false,
+        };
+
+        if cfg!(target_os = "windows") {
+            let output = Command::new("tasklist")
+                .args(["/FI", &format!("PID eq {}", pid)])
+                .output()
+                .unwrap_or_else(|_| std::process::Output {
+                    status: std::process::ExitStatus::default(),
+                    stdout: Vec::new(),
+                    stderr: Vec::new(),
+                });
+
+            String::from_utf8_lossy(&output.stdout).contains(&pid)
+        } else {
+            if let Ok(pid_num) = pid.parse::<u32>() {
+                self.is_process_running(pid_num)
+            } else {
+                false
+            }
         }
     }
 

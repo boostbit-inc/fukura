@@ -326,6 +326,25 @@ pub enum Commands {
         about = "Advanced daemon management (hooks, notifications, foreground mode)"
     )]
     Daemon(DaemonCommand),
+
+    /// View activity history
+    #[command(about = "View comprehensive activity history")]
+    Activity(ActivityCommand),
+}
+
+#[derive(Debug, Args)]
+pub struct ActivityCommand {
+    #[arg(long, help = "List all activity sessions")]
+    list: bool,
+
+    #[arg(value_name = "SESSION_ID", help = "View specific session")]
+    session_id: Option<String>,
+
+    #[arg(long, help = "Show timeline view")]
+    timeline: bool,
+
+    #[arg(long, value_name = "TIME_AGO", help = "Show activities since (e.g., '1h ago')")]
+    since: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -727,6 +746,7 @@ pub async fn run() -> Result<()> {
         Commands::Status => handle_status(&cli).await?,
         Commands::Restart => handle_restart(&cli).await?,
         Commands::Daemon(cmd) => handle_daemon(&cli, cmd).await?,
+        Commands::Activity(cmd) => handle_activity(&cli, cmd).await?,
     }
     Ok(())
 }
@@ -3293,6 +3313,126 @@ async fn handle_restart(cli: &Cli) -> Result<()> {
     if !cli.quiet {
         println!("{} Daemon restarted", "".green());
     }
+    Ok(())
+}
+
+async fn handle_activity(cli: &Cli, cmd: &ActivityCommand) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let storage = crate::activity_storage::ActivityStorage::new(repo.root())?;
+
+    if cmd.list {
+        // List all activity sessions
+        let sessions = storage.list_sessions()?;
+        
+        if sessions.is_empty() {
+            if !cli.quiet {
+                println!("{} No activity sessions found", "ℹ️".blue());
+                println!();
+                println!("💡 Activity tracking captures comprehensive context:");
+                println!("  • File changes");
+                println!("  • Clipboard operations");
+                println!("  • Editor activities");
+                println!("  • Application switches");
+                println!();
+                println!("Enable with: fuku config activity --enable");
+            }
+            return Ok(());
+        }
+
+        if !cli.quiet {
+            println!("{} Activity Sessions:", "📊".cyan());
+            println!();
+        }
+
+        for session_id in sessions {
+            if let Ok(session) = storage.load_session(&session_id) {
+                let duration = session.duration().unwrap_or_default();
+                println!(
+                    "  {} {} ({} activities, {}s)",
+                    format_object_id(&session_id),
+                    session.title.bold(),
+                    session.activities.len(),
+                    duration.as_secs()
+                );
+            }
+        }
+
+        return Ok(());
+    }
+
+    if let Some(session_id) = &cmd.session_id {
+        // View specific session
+        let session = storage.load_session(session_id)?;
+        
+        if !cli.quiet {
+            println!("{} Activity Session: {}", "📊".cyan(), session.title.bold());
+            println!();
+            println!("  🆔 ID: {}", session.id);
+            println!("  ⏰ Started: {:?}", session.start_time);
+            if let Some(end) = session.end_time {
+                println!("  🏁 Ended: {:?}", end);
+            }
+            println!("  📝 Activities: {}", session.activities.len());
+            println!();
+
+            if cmd.timeline {
+                println!("{} Timeline:", "⏱️".cyan());
+                println!();
+                
+                for activity in &session.activities {
+                    match &activity.activity_type {
+                        crate::activity::ActivityType::Command(cmd) => {
+                            println!("  ⌨️  {}", cmd.command);
+                        }
+                        crate::activity::ActivityType::FileChange(file) => {
+                            println!("  📝 {:?} - {:?}", file.change_type, file.path);
+                        }
+                        crate::activity::ActivityType::Clipboard(clip) => {
+                            let preview = if clip.content.len() > 50 {
+                                format!("{}...", &clip.content[..50])
+                            } else {
+                                clip.content.clone()
+                            };
+                            println!("  📋 {}", preview);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        return Ok(());
+    }
+
+    if let Some(time_expr) = &cmd.since {
+        // Show activities since specific time
+        let target_time = crate::time_parser::parse_time_ago(time_expr)?;
+        let sessions = storage.get_sessions_since(target_time)?;
+
+        if !cli.quiet {
+            println!("{} Activities since {}", "📊".cyan(), time_expr);
+            println!();
+            
+            for session in sessions {
+                println!("  {} {}", format_object_id(&session.id), session.title);
+                println!("    {} activities", session.activities.len());
+            }
+        }
+
+        return Ok(());
+    }
+
+    // Default: show help
+    if !cli.quiet {
+        println!("{} Activity Tracking", "📊".cyan());
+        println!();
+        println!("Usage:");
+        println!("  fuku activity --list                    # List all sessions");
+        println!("  fuku activity <SESSION_ID>              # View session details");
+        println!("  fuku activity <SESSION_ID> --timeline   # Show timeline");
+        println!("  fuku activity --since \"1h ago\"          # Recent activities");
+    }
+
     Ok(())
 }
 
