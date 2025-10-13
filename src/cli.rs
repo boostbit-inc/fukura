@@ -1063,12 +1063,32 @@ fn handle_search(cli: &Cli, cmd: &SearchCommand) -> Result<()> {
         return search_all_repos(cli, &query, cmd.limit, cmd.sort, cmd.json);
     }
 
+    // Remote-only search
+    if cmd.remote_only {
+        return tokio::runtime::Runtime::new()?.block_on(async {
+            handle_remote_search(cli, &query, cmd.limit, cmd.json).await
+        });
+    }
+
     let repo = open_repo(cli)?;
     if cmd.tui {
         run_search_tui(&repo, &query, cmd.sort, cmd.limit)?;
         return Ok(());
     }
+    
     let hits = repo.search(&query, cmd.limit, cmd.sort)?;
+    
+    // If --remote flag is set and no local results, search remote
+    if cmd.remote && hits.is_empty() && !query.is_empty() {
+        if !cli.quiet {
+            println!("{} No local results, searching remote hub...", "🔍".cyan());
+            println!();
+        }
+        return tokio::runtime::Runtime::new()?.block_on(async {
+            handle_remote_search(cli, &query, cmd.limit, cmd.json).await
+        });
+    }
+    
     if cmd.json {
         let json = serde_json::to_string_pretty(&hits)?;
         println!("{}", json);
@@ -1079,7 +1099,78 @@ fn handle_search(cli: &Cli, cmd: &SearchCommand) -> Result<()> {
         let short_id = format_object_id(&hits[0].object_id);
         println!("💡 Next: fuku view @1 (or fuku open @1 to open in browser)");
         println!("   Copy ID: {}", short_id);
+    } else if !query.is_empty() && !cli.quiet {
+        println!("{} No results found locally", "ℹ️".blue());
+        println!();
+        println!("💡 Try searching the remote hub:");
+        println!("   fuku search \"{}\" --remote", query);
     }
+    Ok(())
+}
+
+async fn handle_remote_search(
+    cli: &Cli,
+    query: &str,
+    limit: usize,
+    json_output: bool,
+) -> Result<()> {
+    let repo = open_repo(cli)?;
+    let config_path = repo.root().join(".fukura").join("config.toml");
+    let config = crate::config::FukuraConfig::load_with_global_fallback(&config_path)?;
+    
+    let remote_url = config.default_remote
+        .context("No remote configured. Set with: fuku config remote --set <URL>")?;
+
+    let hits = crate::remote_search::search_remote(&remote_url, query, limit).await?;
+
+    if json_output {
+        let json = serde_json::to_string_pretty(&hits)?;
+        println!("{}", json);
+        return Ok(());
+    }
+
+    if hits.is_empty() {
+        if !cli.quiet {
+            println!("{} No results found on remote hub", "ℹ️".blue());
+        }
+        return Ok(());
+    }
+
+    if !cli.quiet {
+        println!("{} Found {} results from remote hub", "✓".green(), hits.len());
+        println!();
+    }
+
+    // Display remote results in a table
+    let mut table = Table::new();
+    table.load_preset(UTF8_HORIZONTAL_ONLY);
+    table.set_header(vec!["#", "Title", "Tags", "Author", "Privacy"]);
+
+    for (i, hit) in hits.iter().enumerate() {
+        let short_id = format_object_id(&hit.object_id);
+        let tags_display = if hit.tags.is_empty() {
+            String::new()
+        } else {
+            format!("#{}", hit.tags.join(" #"))
+        };
+        
+        table.add_row(vec![
+            format!("@{}", i + 1),
+            format!("{} ({})", hit.title, short_id),
+            tags_display,
+            hit.author.clone(),
+            hit.privacy.clone(),
+        ]);
+    }
+
+    println!("{}", table);
+    
+    if !hits.is_empty() && !cli.quiet {
+        println!();
+        println!("💡 To pull a note from remote:");
+        println!("   fuku pull {}", format_object_id(&hits[0].object_id));
+    }
+
     Ok(())
 }
 
