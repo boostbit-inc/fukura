@@ -501,6 +501,12 @@ pub struct SearchCommand {
     #[arg(long, short = 'a', help = "Search all repositories")]
     all_repos: bool,
 
+    #[arg(long, help = "Search remote hub if no local results")]
+    remote: bool,
+
+    #[arg(long, help = "Search remote hub only")]
+    remote_only: bool,
+
     #[arg(value_name = "QUERY", help = "Search terms", trailing_var_arg = true)]
     query: Vec<String>,
 }
