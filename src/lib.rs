@@ -19,5 +19,6 @@ pub mod redaction;
 pub mod repo;
 pub mod sync;
 pub mod time_parser;
+pub mod remote_search;
 
 pub use cli::run;
