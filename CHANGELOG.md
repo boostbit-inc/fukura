@@ -5,6 +5,19 @@ All notable changes to Fukura will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.6] - 2025-01-27
+
+### Added
+- Auto-removal of old versions during installation on all supported platforms
+- Enhanced installer scripts for Linux, macOS, and Windows
+- Improved installation experience with automatic cleanup
+
+### Changed
+- Updated Linux postinstall script to remove old versions from common locations
+- Updated macOS postinstall script to remove old versions from common locations
+- Updated Windows WiX installer to remove old versions from common locations
+- Enhanced cross-platform installation consistency
+
 ## [0.3.5] - 2025-01-27
 
 ### Fixed
