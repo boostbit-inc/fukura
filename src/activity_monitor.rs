@@ -47,7 +47,7 @@ pub struct ActivityMonitor {
 impl ActivityMonitor {
     pub fn new(config: ActivityMonitorConfig) -> Self {
         let (activity_tx, activity_rx) = mpsc::channel(1000);
-        
+
         // Rate limiter: max 1000 activities per second to prevent overwhelming the system
         let rate_limiter = RateLimiter::new(1000, std::time::Duration::from_secs(1));
 
@@ -69,7 +69,7 @@ impl ActivityMonitor {
     /// Start a new activity session
     pub async fn start_session(&self, title: String) -> Result<String> {
         let mut session_guard = self.current_session.write().await;
-        
+
         if session_guard.is_some() {
             anyhow::bail!("Session already in progress");
         }
@@ -85,7 +85,7 @@ impl ActivityMonitor {
     /// Stop current session and return it
     pub async fn stop_session(&self) -> Result<Option<ActivitySession>> {
         let mut session_guard = self.current_session.write().await;
-        
+
         if let Some(mut session) = session_guard.take() {
             session.finish();
             info!("Stopped activity session: {}", session.id);
@@ -140,7 +140,7 @@ impl ActivityMonitor {
 
         Ok(())
     }
-    
+
     /// Get performance metrics
     pub fn get_metrics(&self) -> crate::performance::PerformanceStats {
         self.metrics.get_stats()
@@ -149,9 +149,9 @@ impl ActivityMonitor {
     /// Get current session info
     pub async fn get_session_info(&self) -> Option<(String, usize, SystemTime)> {
         let session_guard = self.current_session.read().await;
-        session_guard.as_ref().map(|s| {
-            (s.title.clone(), s.activities.len(), s.start_time)
-        })
+        session_guard
+            .as_ref()
+            .map(|s| (s.title.clone(), s.activities.len(), s.start_time))
     }
 
     /// Start monitoring (spawns background tasks)
@@ -163,7 +163,7 @@ impl ActivityMonitor {
             let tx = self.activity_tx.clone();
             let session = self.current_session.clone();
             let paths = watch_paths.clone();
-            
+
             tokio::spawn(async move {
                 if let Err(e) = Self::monitor_files(tx, session, paths).await {
                     error!("File monitoring error: {}", e);
@@ -176,7 +176,7 @@ impl ActivityMonitor {
             let tx = self.activity_tx.clone();
             let session = self.current_session.clone();
             let max_len = self.config.max_clipboard_length;
-            
+
             tokio::spawn(async move {
                 if let Err(e) = Self::monitor_clipboard(tx, session, max_len).await {
                     error!("Clipboard monitoring error: {}", e);
@@ -194,10 +194,10 @@ impl ActivityMonitor {
         _paths: Vec<PathBuf>,
     ) -> Result<()> {
         info!("File monitoring started");
-        
+
         // TODO: Implement using notify crate
         // For now, this is a placeholder
-        
+
         Ok(())
     }
 
@@ -208,7 +208,7 @@ impl ActivityMonitor {
         _max_length: usize,
     ) -> Result<()> {
         info!("Clipboard monitoring started");
-        
+
         let _last_content = String::new();
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
 
@@ -250,15 +250,15 @@ mod tests {
     #[tokio::test]
     async fn test_session_lifecycle() {
         let monitor = ActivityMonitor::new(ActivityMonitorConfig::default());
-        
+
         // Start session
         let session_id = monitor.start_session("Test".to_string()).await.unwrap();
         assert!(!session_id.is_empty());
-        
+
         // Check session info
         let info = monitor.get_session_info().await;
         assert!(info.is_some());
-        
+
         // Stop session
         let session = monitor.stop_session().await.unwrap();
         assert!(session.is_some());
@@ -268,21 +268,18 @@ mod tests {
     #[tokio::test]
     async fn test_activity_recording() {
         let monitor = ActivityMonitor::new(ActivityMonitorConfig::default());
-        
+
         // Start session
         let session_id = monitor.start_session("Test".to_string()).await.unwrap();
-        
+
         // Record activity
         let activity = Activity::command(
             session_id.clone(),
-            crate::activity::CommandActivity::new(
-                "test command".to_string(),
-                "/tmp".to_string(),
-            ),
+            crate::activity::CommandActivity::new("test command".to_string(), "/tmp".to_string()),
         );
-        
+
         monitor.record_activity(activity).await.unwrap();
-        
+
         // Check session has activity
         let session = monitor.stop_session().await.unwrap().unwrap();
         assert_eq!(session.activities.len(), 1);
@@ -290,26 +287,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_session_limit() {
-        let mut config = ActivityMonitorConfig::default();
-        config.max_activities_per_session = 2;
-        
+        let config = ActivityMonitorConfig {
+            max_activities_per_session: 2,
+            ..Default::default()
+        };
+
         let monitor = ActivityMonitor::new(config);
         let session_id = monitor.start_session("Test".to_string()).await.unwrap();
-        
+
         // Record 3 activities, but only 2 should be stored
         for i in 0..3 {
             let activity = Activity::command(
                 session_id.clone(),
-                crate::activity::CommandActivity::new(
-                    format!("command {}", i),
-                    "/tmp".to_string(),
-                ),
+                crate::activity::CommandActivity::new(format!("command {}", i), "/tmp".to_string()),
             );
             monitor.record_activity(activity).await.unwrap();
         }
-        
+
         let session = monitor.stop_session().await.unwrap().unwrap();
         assert_eq!(session.activities.len(), 2); // Limited to 2
     }
 }
-

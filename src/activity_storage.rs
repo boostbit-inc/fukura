@@ -40,11 +40,11 @@ impl ActivityStorage {
     /// List all sessions
     pub fn list_sessions(&self) -> Result<Vec<String>> {
         let mut sessions = Vec::new();
-        
+
         for entry in fs::read_dir(&self.storage_path)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.extension().and_then(|e| e.to_str()) == Some("json") {
                 if let Some(file_stem) = path.file_stem() {
                     if let Some(session_id) = file_stem.to_str() {
@@ -89,8 +89,8 @@ impl ActivityStorage {
 
     /// Compact storage by removing old sessions
     pub fn compact(&self, retention_days: u32) -> Result<usize> {
-        let cutoff = SystemTime::now()
-            - std::time::Duration::from_secs(retention_days as u64 * 24 * 3600);
+        let cutoff =
+            SystemTime::now() - std::time::Duration::from_secs(retention_days as u64 * 24 * 3600);
 
         let mut removed = 0;
 
@@ -174,9 +174,8 @@ mod tests {
 
         // Create sessions
         let mut old_session = ActivitySession::new("Old".to_string());
-        old_session.start_time = SystemTime::now()
-            - std::time::Duration::from_secs(31 * 24 * 3600); // 31 days ago
-        
+        old_session.start_time = SystemTime::now() - std::time::Duration::from_secs(31 * 24 * 3600); // 31 days ago
+
         let new_session = ActivitySession::new("New".to_string());
 
         storage.store_session(&old_session).unwrap();
@@ -191,4 +190,3 @@ mod tests {
         assert!(storage.load_session(&old_session.id).is_err());
     }
 }
-

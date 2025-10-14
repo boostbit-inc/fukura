@@ -127,8 +127,8 @@ impl<T> BatchProcessor<T> {
         self.batch.push(item);
 
         // Flush if batch is full or interval elapsed
-        if self.batch.len() >= self.max_batch_size 
-            || self.last_flush.elapsed() >= self.flush_interval 
+        if self.batch.len() >= self.max_batch_size
+            || self.last_flush.elapsed() >= self.flush_interval
         {
             self.flush()
         } else {
@@ -142,7 +142,10 @@ impl<T> BatchProcessor<T> {
         }
 
         self.last_flush = Instant::now();
-        Some(std::mem::replace(&mut self.batch, Vec::with_capacity(self.max_batch_size)))
+        Some(std::mem::replace(
+            &mut self.batch,
+            Vec::with_capacity(self.max_batch_size),
+        ))
     }
 
     pub fn len(&self) -> usize {
@@ -182,7 +185,7 @@ impl<T: Clone> CircularBuffer<T> {
 
     pub fn to_vec(&self) -> Vec<T> {
         let mut result = Vec::with_capacity(self.len);
-        
+
         if self.len == self.capacity {
             // Buffer is full, start from write_pos
             for i in 0..self.capacity {
@@ -193,13 +196,11 @@ impl<T: Clone> CircularBuffer<T> {
             }
         } else {
             // Buffer not full yet, items are at start
-            for item in &self.buffer[..self.len] {
-                if let Some(item) = item {
-                    result.push(item.clone());
-                }
+            for item in self.buffer[..self.len].iter().flatten() {
+                result.push(item.clone());
             }
         }
-        
+
         result
     }
 
@@ -223,11 +224,11 @@ mod tests {
     #[test]
     fn test_performance_metrics() {
         let metrics = PerformanceMetrics::new();
-        
+
         metrics.record_activity_processed();
         metrics.record_activity_processed();
         metrics.record_activity_filtered();
-        
+
         let stats = metrics.get_stats();
         assert_eq!(stats.activities_processed, 2);
         assert_eq!(stats.activities_filtered, 1);
@@ -236,7 +237,7 @@ mod tests {
     #[test]
     fn test_rate_limiter() {
         let mut limiter = RateLimiter::new(3, Duration::from_secs(1));
-        
+
         assert!(limiter.should_allow());
         assert!(limiter.should_allow());
         assert!(limiter.should_allow());
@@ -246,10 +247,10 @@ mod tests {
     #[test]
     fn test_batch_processor() {
         let mut processor = BatchProcessor::new(3, Duration::from_secs(10));
-        
+
         assert_eq!(processor.add(1), None);
         assert_eq!(processor.add(2), None);
-        
+
         // 3rd item should trigger flush
         let batch = processor.add(3);
         assert!(batch.is_some());
@@ -259,14 +260,14 @@ mod tests {
     #[test]
     fn test_circular_buffer() {
         let mut buffer = CircularBuffer::new(3);
-        
+
         buffer.push(1);
         buffer.push(2);
         assert_eq!(buffer.len(), 2);
-        
+
         buffer.push(3);
         assert_eq!(buffer.to_vec(), vec![1, 2, 3]);
-        
+
         // Overflow - should overwrite oldest
         buffer.push(4);
         assert_eq!(buffer.to_vec(), vec![2, 3, 4]);
@@ -280,4 +281,3 @@ mod tests {
         assert!(buffer.is_empty());
     }
 }
-

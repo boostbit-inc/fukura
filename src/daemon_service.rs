@@ -58,12 +58,10 @@ impl DaemonService {
                 });
 
             String::from_utf8_lossy(&output.stdout).contains(&pid)
+        } else if let Ok(pid_num) = pid.parse::<u32>() {
+            self.is_process_running(pid_num)
         } else {
-            if let Ok(pid_num) = pid.parse::<u32>() {
-                self.is_process_running(pid_num)
-            } else {
-                false
-            }
+            false
         }
     }
 

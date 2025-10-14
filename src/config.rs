@@ -45,7 +45,7 @@ impl RecordingConfig {
     fn default_max_lookback_hours() -> u32 {
         3
     }
-    
+
     fn default_min_lookback_minutes() -> u32 {
         1
     }
@@ -56,39 +56,39 @@ pub struct ActivityTrackingConfig {
     /// Enable comprehensive activity tracking
     #[serde(default = "ActivityTrackingConfig::default_enabled")]
     pub enabled: bool,
-    
+
     /// Track file changes
     #[serde(default = "ActivityTrackingConfig::default_file_tracking")]
     pub file_tracking: bool,
-    
+
     /// Track clipboard (privacy-sensitive, off by default)
     #[serde(default)]
     pub clipboard_tracking: bool,
-    
+
     /// Track application switches
     #[serde(default = "ActivityTrackingConfig::default_app_tracking")]
     pub app_tracking: bool,
-    
+
     /// Track editor activities (requires editor integration)
     #[serde(default = "ActivityTrackingConfig::default_editor_tracking")]
     pub editor_tracking: bool,
-    
+
     /// Maximum clipboard content length to store
     #[serde(default = "ActivityTrackingConfig::default_max_clipboard_length")]
     pub max_clipboard_length: usize,
-    
+
     /// Maximum file size (KB) for diff calculation
     #[serde(default = "ActivityTrackingConfig::default_max_file_size_kb")]
     pub max_file_size_kb: u64,
-    
+
     /// Maximum activities per session
     #[serde(default = "ActivityTrackingConfig::default_max_activities_per_session")]
     pub max_activities_per_session: usize,
-    
+
     /// Data retention period (days)
     #[serde(default = "ActivityTrackingConfig::default_retention_days")]
     pub retention_days: u32,
-    
+
     /// Excluded file patterns
     #[serde(default = "ActivityTrackingConfig::default_exclude_patterns")]
     pub exclude_patterns: Vec<String>,
@@ -123,35 +123,35 @@ impl ActivityTrackingConfig {
     fn default_enabled() -> bool {
         true
     }
-    
+
     fn default_file_tracking() -> bool {
         true
     }
-    
+
     fn default_app_tracking() -> bool {
         true
     }
-    
+
     fn default_editor_tracking() -> bool {
         true
     }
-    
+
     fn default_max_clipboard_length() -> usize {
         1000
     }
-    
+
     fn default_max_file_size_kb() -> u64 {
         100
     }
-    
+
     fn default_max_activities_per_session() -> usize {
         10000
     }
-    
+
     fn default_retention_days() -> u32 {
         30
     }
-    
+
     fn default_exclude_patterns() -> Vec<String> {
         vec![
             "node_modules".to_string(),

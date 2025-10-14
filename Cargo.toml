@@ -1,6 +1,6 @@
 [package]
 name = "fukura"
-version = "0.3.4"
+version = "0.3.5"
 edition = "2021"
 description = "An intelligent knowledge management system with automatic error capture and solution tracking"
 license = "Apache-2.0"
