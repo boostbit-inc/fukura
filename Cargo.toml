@@ -1,6 +1,6 @@
 [package]
 name = "fukura"
-version = "0.3.6"
+version = "0.3.7"
 edition = "2021"
 description = "An intelligent knowledge management system with automatic error capture and solution tracking"
 license = "Apache-2.0"
@@ -11,6 +11,7 @@ keywords = ["cli", "knowledge-base", "search", "troubleshooting", "documentation
 categories = ["command-line-utilities", "development-tools"]
 readme = "README.md"
 rust-version = "1.70"
+
 
 [dependencies]
 anyhow = "1.0"
