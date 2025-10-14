@@ -1562,7 +1562,11 @@ fn handle_stats(cli: &Cli) -> Result<()> {
     let mut loose_count = 0usize;
 
     if objects_dir.exists() {
-        for entry in walkdir::WalkDir::new(&objects_dir).max_depth(3).into_iter().flatten() {
+        for entry in walkdir::WalkDir::new(&objects_dir)
+            .max_depth(3)
+            .into_iter()
+            .flatten()
+        {
             if entry.file_type().is_file() {
                 if let Ok(metadata) = entry.metadata() {
                     total_size += metadata.len();
@@ -1701,7 +1705,8 @@ fn handle_completions(cli: &Cli, cmd: &CompletionsCommand) -> Result<()> {
             let file = path.join("_fuku");
             (
                 file,
-                "Add 'fpath=(~/.zsh/completions $fpath)' to your ~/.zshrc and run 'compinit'".to_string(),
+                "Add 'fpath=(~/.zsh/completions $fpath)' to your ~/.zshrc and run 'compinit'"
+                    .to_string(),
             )
         }
         Shell::Fish => {
