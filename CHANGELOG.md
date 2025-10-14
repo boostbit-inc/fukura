@@ -5,6 +5,13 @@ All notable changes to Fukura will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.7] - 2025-01-27
+
+### Fixed
+- Fixed version display to show correct binary name (fukura vs fuku)
+- Fixed version number display to show current version instead of hardcoded value
+- Improved binary name detection for proper CLI output
+
 ## [0.3.6] - 2025-01-27
 
 ### Added
