@@ -16,7 +16,9 @@ pub struct RemoteSearchHit {
 #[derive(Debug, Deserialize)]
 struct RemoteSearchResult {
     notes: Vec<RemoteNote>,
+    #[allow(dead_code)]
     total: usize,
+    #[allow(dead_code)]
     took_ms: u64,
 }
 
@@ -53,7 +55,7 @@ pub async fn search_remote(
     );
 
     let mut request = client.get(&url);
-    
+
     if !token.is_empty() {
         request = request.header("Authorization", format!("Bearer {}", token));
     }
@@ -101,5 +103,3 @@ pub async fn search_remote(
 
     Ok(hits)
 }
-
-

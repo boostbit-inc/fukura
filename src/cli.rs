@@ -139,21 +139,22 @@ async fn handle_rec_time_based(cli: &Cli, cmd: &RecCommand) -> Result<()> {
 
 async fn handle_time_based_rec(cli: &Cli, title: &str, time_expr: &str) -> Result<()> {
     let repo = open_repo(cli)?;
-    
+
     // Load configuration
     let config_path = repo.root().join(".fukura").join("config.toml");
     let config = crate::config::FukuraConfig::load(&config_path)?;
-    
+
     // Parse time expression
     let target_time = parse_time_ago(time_expr)
         .with_context(|| format!("Invalid time format: '{}'", time_expr))?;
-    
+
     // Validate against configuration limits
     validate_time_ago(
         target_time,
         config.recording.max_lookback_hours,
         config.recording.min_lookback_minutes,
-    ).with_context(|| "Time validation failed")?;
+    )
+    .with_context(|| "Time validation failed")?;
 
     // Check if daemon is running
     let daemon_service = DaemonService::new(repo.root());
@@ -162,12 +163,14 @@ async fn handle_time_based_rec(cli: &Cli, title: &str, time_expr: &str) -> Resul
             println!("{} Daemon not running. Starting it now...", "ℹ️".yellow());
         }
         daemon_service.start_background()?;
-        
+
         // Wait a moment for daemon to initialize
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-        
+
         if !daemon_service.is_running().await {
-            bail!("Failed to start daemon. Time-based recording requires the daemon to be running.");
+            bail!(
+                "Failed to start daemon. Time-based recording requires the daemon to be running."
+            );
         }
     }
 
@@ -179,8 +182,15 @@ async fn handle_time_based_rec(cli: &Cli, title: &str, time_expr: &str) -> Resul
     // Note: In a real implementation, you'd need to connect to the daemon via socket
     // For now, we'll create a placeholder recording file
     let session_id = format!("time_rec_{}", chrono::Utc::now().timestamp());
-    let recording_data = format!("{}|{}|since:{}", session_id, title, target_time.duration_since(std::time::SystemTime::UNIX_EPOCH)?.as_secs());
-    
+    let recording_data = format!(
+        "{}|{}|since:{}",
+        session_id,
+        title,
+        target_time
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)?
+            .as_secs()
+    );
+
     let recording_file = repo.root().join(".fukura").join("recording");
     fs::write(&recording_file, recording_data)?;
 
@@ -191,7 +201,10 @@ async fn handle_time_based_rec(cli: &Cli, title: &str, time_expr: &str) -> Resul
         println!("  ⏰ From: {}", time_expr);
         println!("  🎯 Session ID: {}", session_id);
         println!();
-        println!("💡 Commands from {} ago are now included in recording", time_expr);
+        println!(
+            "💡 Commands from {} ago are now included in recording",
+            time_expr
+        );
         println!("   Continue working and run 'fuku done' when finished");
     }
 
@@ -332,7 +345,10 @@ pub enum Commands {
     Activity(ActivityCommand),
 
     /// Show activity log (like git log)
-    #[command(about = "Show activity history in timeline format", visible_alias = "l")]
+    #[command(
+        about = "Show activity history in timeline format",
+        visible_alias = "l"
+    )]
     Log(LogCommand),
 
     /// Show activity details (like git show)
@@ -355,13 +371,22 @@ pub struct ActivityCommand {
     #[arg(long, help = "Show timeline view")]
     timeline: bool,
 
-    #[arg(long, value_name = "TIME_AGO", help = "Show activities since (e.g., '1h ago')")]
+    #[arg(
+        long,
+        value_name = "TIME_AGO",
+        help = "Show activities since (e.g., '1h ago')"
+    )]
     since: Option<String>,
 }
 
 #[derive(Debug, Args)]
 pub struct LogCommand {
-    #[arg(short = 'n', long, default_value = "10", help = "Number of entries to show")]
+    #[arg(
+        short = 'n',
+        long,
+        default_value = "10",
+        help = "Number of entries to show"
+    )]
     limit: usize,
 
     #[arg(long, value_name = "TIME_AGO", help = "Show since (e.g., '1h ago')")]
@@ -800,7 +825,7 @@ pub async fn run() -> Result<()> {
             } else {
                 handle_rec(&cli, cmd)?;
             }
-        },
+        }
         Commands::Done => handle_done(&cli)?,
         Commands::Gc(cmd) => handle_gc(&cli, cmd)?,
         Commands::Push(cmd) => handle_push(&cli, cmd).await?,
@@ -864,10 +889,7 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
         if let Err(e) = daemon_service.start_background() {
             if !cli.quiet {
                 println!("{} Failed to start daemon: {}", "⚠️".yellow(), e);
-                println!(
-                    "{} You can start it later with: fuku start",
-                    "💡".cyan()
-                );
+                println!("{} You can start it later with: fuku start", "💡".cyan());
             }
         } else if !cli.quiet {
             println!("{} Background daemon started", "✓".green());
@@ -877,7 +899,10 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
     // Setup shell hooks (unless --no-hooks is specified)
     if !cmd.no_hooks && !cli.quiet {
         println!();
-        println!("{} For best experience, add to your shell profile:", "💡".cyan());
+        println!(
+            "{} For best experience, add to your shell profile:",
+            "💡".cyan()
+        );
         println!();
         println!("  # For Bash/Zsh:");
         println!("  eval \"$(fuku alias --setup)\"");
@@ -1065,9 +1090,8 @@ fn handle_search(cli: &Cli, cmd: &SearchCommand) -> Result<()> {
 
     // Remote-only search
     if cmd.remote_only {
-        return tokio::runtime::Runtime::new()?.block_on(async {
-            handle_remote_search(cli, &query, cmd.limit, cmd.json).await
-        });
+        return tokio::runtime::Runtime::new()?
+            .block_on(async { handle_remote_search(cli, &query, cmd.limit, cmd.json).await });
     }
 
     let repo = open_repo(cli)?;
@@ -1075,20 +1099,19 @@ fn handle_search(cli: &Cli, cmd: &SearchCommand) -> Result<()> {
         run_search_tui(&repo, &query, cmd.sort, cmd.limit)?;
         return Ok(());
     }
-    
+
     let hits = repo.search(&query, cmd.limit, cmd.sort)?;
-    
+
     // If --remote flag is set and no local results, search remote
     if cmd.remote && hits.is_empty() && !query.is_empty() {
         if !cli.quiet {
             println!("{} No local results, searching remote hub...", "🔍".cyan());
             println!();
         }
-        return tokio::runtime::Runtime::new()?.block_on(async {
-            handle_remote_search(cli, &query, cmd.limit, cmd.json).await
-        });
+        return tokio::runtime::Runtime::new()?
+            .block_on(async { handle_remote_search(cli, &query, cmd.limit, cmd.json).await });
     }
-    
+
     if cmd.json {
         let json = serde_json::to_string_pretty(&hits)?;
         println!("{}", json);
@@ -1117,8 +1140,9 @@ async fn handle_remote_search(
     let repo = open_repo(cli)?;
     let config_path = repo.root().join(".fukura").join("config.toml");
     let config = crate::config::FukuraConfig::load_with_global_fallback(&config_path)?;
-    
-    let remote_url = config.default_remote
+
+    let remote_url = config
+        .default_remote
         .context("No remote configured. Set with: fuku config remote --set <URL>")?;
 
     let hits = crate::remote_search::search_remote(&remote_url, query, limit).await?;
@@ -1137,7 +1161,11 @@ async fn handle_remote_search(
     }
 
     if !cli.quiet {
-        println!("{} Found {} results from remote hub", "✓".green(), hits.len());
+        println!(
+            "{} Found {} results from remote hub",
+            "✓".green(),
+            hits.len()
+        );
         println!();
     }
 
@@ -1153,7 +1181,7 @@ async fn handle_remote_search(
         } else {
             format!("#{}", hit.tags.join(" #"))
         };
-        
+
         table.add_row(vec![
             format!("@{}", i + 1),
             format!("{} ({})", hit.title, short_id),
@@ -1164,7 +1192,7 @@ async fn handle_remote_search(
     }
 
     println!("{}", table);
-    
+
     if !hits.is_empty() && !cli.quiet {
         println!();
         println!("💡 To pull a note from remote:");
@@ -1534,13 +1562,11 @@ fn handle_stats(cli: &Cli) -> Result<()> {
     let mut loose_count = 0usize;
 
     if objects_dir.exists() {
-        for entry in walkdir::WalkDir::new(&objects_dir).max_depth(3) {
-            if let Ok(entry) = entry {
-                if entry.file_type().is_file() {
-                    if let Ok(metadata) = entry.metadata() {
-                        total_size += metadata.len();
-                        loose_count += 1;
-                    }
+        for entry in walkdir::WalkDir::new(&objects_dir).max_depth(3).into_iter().flatten() {
+            if entry.file_type().is_file() {
+                if let Ok(metadata) = entry.metadata() {
+                    total_size += metadata.len();
+                    loose_count += 1;
                 }
             }
         }
@@ -1548,13 +1574,11 @@ fn handle_stats(cli: &Cli) -> Result<()> {
 
     let mut pack_count = 0usize;
     if packs_dir.exists() {
-        for entry in fs::read_dir(&packs_dir)? {
-            if let Ok(entry) = entry {
-                if entry.file_type()?.is_file() {
-                    if let Ok(metadata) = entry.metadata() {
-                        total_size += metadata.len();
-                        pack_count += 1;
-                    }
+        for entry in (fs::read_dir(&packs_dir)?).flatten() {
+            if entry.file_type()?.is_file() {
+                if let Ok(metadata) = entry.metadata() {
+                    total_size += metadata.len();
+                    pack_count += 1;
                 }
             }
         }
@@ -1677,9 +1701,7 @@ fn handle_completions(cli: &Cli, cmd: &CompletionsCommand) -> Result<()> {
             let file = path.join("_fuku");
             (
                 file,
-                format!(
-                    "Add 'fpath=(~/.zsh/completions $fpath)' to your ~/.zshrc and run 'compinit'"
-                ),
+                "Add 'fpath=(~/.zsh/completions $fpath)' to your ~/.zshrc and run 'compinit'".to_string(),
             )
         }
         Shell::Fish => {
@@ -2142,7 +2164,6 @@ fn handle_rec(cli: &Cli, cmd: &RecCommand) -> Result<()> {
 
     Ok(())
 }
-
 
 fn handle_done(cli: &Cli) -> Result<()> {
     let repo = open_repo(cli)?;
@@ -3504,7 +3525,7 @@ async fn handle_log(cli: &Cli, cmd: &LogCommand) -> Result<()> {
     // Sort by time (most recent first)
     let mut sessions: Vec<_> = sessions;
     sessions.sort_by(|a, b| b.start_time.cmp(&a.start_time));
-    
+
     // Limit results
     sessions.truncate(cmd.limit);
 
@@ -3512,7 +3533,7 @@ async fn handle_log(cli: &Cli, cmd: &LogCommand) -> Result<()> {
         for session in sessions {
             let duration = session.duration().unwrap_or_default();
             let time_str = format_time(session.start_time);
-            
+
             if cmd.oneline {
                 println!(
                     "{} {} {} ({}s, {} activities)",
@@ -3528,17 +3549,28 @@ async fn handle_log(cli: &Cli, cmd: &LogCommand) -> Result<()> {
                 println!();
                 println!("    {}", session.title);
                 println!();
-                
+
                 if cmd.files {
                     // Show only file changes
-                    let file_count = session.activities.iter()
-                        .filter(|a| matches!(a.activity_type, crate::activity::ActivityType::FileChange(_)))
+                    let file_count = session
+                        .activities
+                        .iter()
+                        .filter(|a| {
+                            matches!(
+                                a.activity_type,
+                                crate::activity::ActivityType::FileChange(_)
+                            )
+                        })
                         .count();
                     println!("    {} file changes", file_count);
                 } else if cmd.commands {
                     // Show only commands
-                    let cmd_count = session.activities.iter()
-                        .filter(|a| matches!(a.activity_type, crate::activity::ActivityType::Command(_)))
+                    let cmd_count = session
+                        .activities
+                        .iter()
+                        .filter(|a| {
+                            matches!(a.activity_type, crate::activity::ActivityType::Command(_))
+                        })
                         .count();
                     println!("    {} commands executed", cmd_count);
                 } else {
@@ -3562,7 +3594,8 @@ async fn handle_show_activity(cli: &Cli, cmd: &ShowCommand) -> Result<()> {
         if sessions.is_empty() {
             bail!("No activity sessions found");
         }
-        sessions.into_iter()
+        sessions
+            .into_iter()
             .filter_map(|id| storage.load_session(&id).ok())
             .max_by_key(|s| s.start_time)
             .map(|s| s.id)
@@ -3580,7 +3613,11 @@ async fn handle_show_activity(cli: &Cli, cmd: &ShowCommand) -> Result<()> {
     }
 
     if !cli.quiet {
-        println!("{} {}", "session".yellow().bold(), format_object_id(&session_id));
+        println!(
+            "{} {}",
+            "session".yellow().bold(),
+            format_object_id(&session_id)
+        );
         println!("Title:    {}", session.title.bold());
         println!("Started:  {}", format_time(session.start_time));
         if let Some(end) = session.end_time {
@@ -3594,7 +3631,7 @@ async fn handle_show_activity(cli: &Cli, cmd: &ShowCommand) -> Result<()> {
             // Show all activities
             println!("Activities:");
             println!();
-            
+
             for (i, activity) in session.activities.iter().enumerate() {
                 let time = format_time(activity.timestamp);
                 match &activity.activity_type {
@@ -3604,8 +3641,9 @@ async fn handle_show_activity(cli: &Cli, cmd: &ShowCommand) -> Result<()> {
                         } else {
                             "✗".red()
                         };
-                        println!("  {} [{}] {} {}", 
-                            format!("{:3}", i+1).dimmed(),
+                        println!(
+                            "  {} [{}] {} {}",
+                            format!("{:3}", i + 1).dimmed(),
                             time.dimmed(),
                             status,
                             c.command.bold()
@@ -3618,8 +3656,9 @@ async fn handle_show_activity(cli: &Cli, cmd: &ShowCommand) -> Result<()> {
                             crate::activity::FileChangeType::Deleted => "-".red(),
                             crate::activity::FileChangeType::Renamed { .. } => "R".blue(),
                         };
-                        println!("  {} [{}] {} {:?}", 
-                            format!("{:3}", i+1).dimmed(),
+                        println!(
+                            "  {} [{}] {} {:?}",
+                            format!("{:3}", i + 1).dimmed(),
                             time.dimmed(),
                             icon,
                             f.path
@@ -3631,8 +3670,9 @@ async fn handle_show_activity(cli: &Cli, cmd: &ShowCommand) -> Result<()> {
                         } else {
                             c.content.clone()
                         };
-                        println!("  {} [{}] 📋 {}", 
-                            format!("{:3}", i+1).dimmed(),
+                        println!(
+                            "  {} [{}] 📋 {}",
+                            format!("{:3}", i + 1).dimmed(),
                             time.dimmed(),
                             preview.dimmed()
                         );
@@ -3644,14 +3684,23 @@ async fn handle_show_activity(cli: &Cli, cmd: &ShowCommand) -> Result<()> {
             // Summary only
             println!("Activity Summary:");
             println!("  Total: {} activities", session.activities.len());
-            
-            let commands = session.activities.iter()
+
+            let commands = session
+                .activities
+                .iter()
                 .filter(|a| matches!(a.activity_type, crate::activity::ActivityType::Command(_)))
                 .count();
-            let files = session.activities.iter()
-                .filter(|a| matches!(a.activity_type, crate::activity::ActivityType::FileChange(_)))
+            let files = session
+                .activities
+                .iter()
+                .filter(|a| {
+                    matches!(
+                        a.activity_type,
+                        crate::activity::ActivityType::FileChange(_)
+                    )
+                })
                 .count();
-            
+
             println!("  Commands: {}", commands);
             println!("  File changes: {}", files);
             println!();
@@ -3672,16 +3721,40 @@ async fn handle_track(cli: &Cli, cmd: &TrackCommand) -> Result<()> {
         if !cli.quiet {
             println!("{} Activity Tracking Status", "📊".cyan().bold());
             println!();
-            println!("  Enabled:          {}", format_bool(config.activity_tracking.enabled));
-            println!("  File tracking:    {}", format_bool(config.activity_tracking.file_tracking));
-            println!("  Clipboard:        {}", format_bool(config.activity_tracking.clipboard_tracking));
-            println!("  App tracking:     {}", format_bool(config.activity_tracking.app_tracking));
-            println!("  Editor tracking:  {}", format_bool(config.activity_tracking.editor_tracking));
+            println!(
+                "  Enabled:          {}",
+                format_bool(config.activity_tracking.enabled)
+            );
+            println!(
+                "  File tracking:    {}",
+                format_bool(config.activity_tracking.file_tracking)
+            );
+            println!(
+                "  Clipboard:        {}",
+                format_bool(config.activity_tracking.clipboard_tracking)
+            );
+            println!(
+                "  App tracking:     {}",
+                format_bool(config.activity_tracking.app_tracking)
+            );
+            println!(
+                "  Editor tracking:  {}",
+                format_bool(config.activity_tracking.editor_tracking)
+            );
             println!();
             println!("Limits:");
-            println!("  Max activities:   {}", config.activity_tracking.max_activities_per_session);
-            println!("  Retention:        {} days", config.activity_tracking.retention_days);
-            println!("  Max file size:    {} KB", config.activity_tracking.max_file_size_kb);
+            println!(
+                "  Max activities:   {}",
+                config.activity_tracking.max_activities_per_session
+            );
+            println!(
+                "  Retention:        {} days",
+                config.activity_tracking.retention_days
+            );
+            println!(
+                "  Max file size:    {} KB",
+                config.activity_tracking.max_file_size_kb
+            );
         }
         return Ok(());
     }
@@ -3689,7 +3762,7 @@ async fn handle_track(cli: &Cli, cmd: &TrackCommand) -> Result<()> {
     if cmd.start {
         config.activity_tracking.enabled = true;
         config.save(&config_path)?;
-        
+
         if !cli.quiet {
             println!("{} Activity tracking enabled", "✓".green().bold());
             println!();
@@ -3706,7 +3779,7 @@ async fn handle_track(cli: &Cli, cmd: &TrackCommand) -> Result<()> {
     if cmd.stop {
         config.activity_tracking.enabled = false;
         config.save(&config_path)?;
-        
+
         if !cli.quiet {
             println!("{} Activity tracking disabled", "⏹️".yellow());
         }
@@ -3716,10 +3789,11 @@ async fn handle_track(cli: &Cli, cmd: &TrackCommand) -> Result<()> {
     if cmd.files {
         config.activity_tracking.file_tracking = !config.activity_tracking.file_tracking;
         config.save(&config_path)?;
-        
+
         if !cli.quiet {
-            println!("{} File tracking: {}", 
-                "✓".green(), 
+            println!(
+                "{} File tracking: {}",
+                "✓".green(),
                 format_bool(config.activity_tracking.file_tracking)
             );
         }
@@ -3729,10 +3803,11 @@ async fn handle_track(cli: &Cli, cmd: &TrackCommand) -> Result<()> {
     if cmd.clipboard {
         config.activity_tracking.clipboard_tracking = !config.activity_tracking.clipboard_tracking;
         config.save(&config_path)?;
-        
+
         if !cli.quiet {
-            println!("{} Clipboard tracking: {}", 
-                "✓".green(), 
+            println!(
+                "{} Clipboard tracking: {}",
+                "✓".green(),
                 format_bool(config.activity_tracking.clipboard_tracking)
             );
             if config.activity_tracking.clipboard_tracking {
@@ -3748,15 +3823,30 @@ async fn handle_track(cli: &Cli, cmd: &TrackCommand) -> Result<()> {
     if !cli.quiet {
         println!("{} Activity Tracking Status", "📊".cyan().bold());
         println!();
-        println!("  Enabled:          {}", format_bool(config.activity_tracking.enabled));
-        println!("  File tracking:    {}", format_bool(config.activity_tracking.file_tracking));
-        println!("  Clipboard:        {}", format_bool(config.activity_tracking.clipboard_tracking));
-        println!("  App tracking:     {}", format_bool(config.activity_tracking.app_tracking));
-        println!("  Editor tracking:  {}", format_bool(config.activity_tracking.editor_tracking));
+        println!(
+            "  Enabled:          {}",
+            format_bool(config.activity_tracking.enabled)
+        );
+        println!(
+            "  File tracking:    {}",
+            format_bool(config.activity_tracking.file_tracking)
+        );
+        println!(
+            "  Clipboard:        {}",
+            format_bool(config.activity_tracking.clipboard_tracking)
+        );
+        println!(
+            "  App tracking:     {}",
+            format_bool(config.activity_tracking.app_tracking)
+        );
+        println!(
+            "  Editor tracking:  {}",
+            format_bool(config.activity_tracking.editor_tracking)
+        );
         println!();
         println!("💡 Toggle with: fuku track --start | --stop | --files | --clipboard");
     }
-    
+
     Ok(())
 }
 
@@ -3780,7 +3870,7 @@ async fn handle_activity(cli: &Cli, cmd: &ActivityCommand) -> Result<()> {
     if cmd.list {
         // List all activity sessions
         let sessions = storage.list_sessions()?;
-        
+
         if sessions.is_empty() {
             if !cli.quiet {
                 println!("{} No activity sessions found", "ℹ️".blue());
@@ -3820,7 +3910,7 @@ async fn handle_activity(cli: &Cli, cmd: &ActivityCommand) -> Result<()> {
     if let Some(session_id) = &cmd.session_id {
         // View specific session
         let session = storage.load_session(session_id)?;
-        
+
         if !cli.quiet {
             println!("{} Activity Session: {}", "📊".cyan(), session.title.bold());
             println!();
@@ -3835,7 +3925,7 @@ async fn handle_activity(cli: &Cli, cmd: &ActivityCommand) -> Result<()> {
             if cmd.timeline {
                 println!("{} Timeline:", "⏱️".cyan());
                 println!();
-                
+
                 for activity in &session.activities {
                     match &activity.activity_type {
                         crate::activity::ActivityType::Command(cmd) => {
@@ -3869,7 +3959,7 @@ async fn handle_activity(cli: &Cli, cmd: &ActivityCommand) -> Result<()> {
         if !cli.quiet {
             println!("{} Activities since {}", "📊".cyan(), time_expr);
             println!();
-            
+
             for session in sessions {
                 println!("  {} {}", format_object_id(&session.id), session.title);
                 println!("    {} activities", session.activities.len());

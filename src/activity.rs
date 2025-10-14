@@ -1,11 +1,11 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 /// Comprehensive activity tracking system
-/// 
+///
 /// This module provides a multi-layered activity tracking system that captures
 /// not just commands, but file changes, clipboard operations, editor activities,
 /// and more to provide complete context for development work.
@@ -53,10 +53,7 @@ pub struct CommandActivity {
 }
 
 impl CommandActivity {
-    pub fn new(
-        command: String,
-        working_directory: String,
-    ) -> Self {
+    pub fn new(command: String, working_directory: String) -> Self {
         Self {
             command,
             exit_code: None,
@@ -192,15 +189,19 @@ impl ClipboardActivity {
     }
 
     pub fn detect_type(mut self) -> Self {
-        self.content_type = if self.content.starts_with("http://") || self.content.starts_with("https://") {
-            ClipboardType::Url
-        } else if self.content.starts_with('/') || self.content.contains(":\\") {
-            ClipboardType::FilePath
-        } else if self.content.contains("fn ") || self.content.contains("def ") || self.content.contains("function ") {
-            ClipboardType::Code("unknown".to_string())
-        } else {
-            ClipboardType::Text
-        };
+        self.content_type =
+            if self.content.starts_with("http://") || self.content.starts_with("https://") {
+                ClipboardType::Url
+            } else if self.content.starts_with('/') || self.content.contains(":\\") {
+                ClipboardType::FilePath
+            } else if self.content.contains("fn ")
+                || self.content.contains("def ")
+                || self.content.contains("function ")
+            {
+                ClipboardType::Code("unknown".to_string())
+            } else {
+                ClipboardType::Text
+            };
         self
     }
 }
@@ -326,10 +327,7 @@ pub enum BrowserAction {
 // ============================================================================
 
 impl Activity {
-    pub fn command(
-        session_id: String,
-        activity: CommandActivity,
-    ) -> Self {
+    pub fn command(session_id: String, activity: CommandActivity) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             activity_type: ActivityType::Command(activity),
@@ -339,10 +337,7 @@ impl Activity {
         }
     }
 
-    pub fn file_change(
-        session_id: String,
-        activity: FileChangeActivity,
-    ) -> Self {
+    pub fn file_change(session_id: String, activity: FileChangeActivity) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             activity_type: ActivityType::FileChange(activity),
@@ -352,10 +347,7 @@ impl Activity {
         }
     }
 
-    pub fn clipboard(
-        session_id: String,
-        activity: ClipboardActivity,
-    ) -> Self {
+    pub fn clipboard(session_id: String, activity: ClipboardActivity) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             activity_type: ActivityType::Clipboard(activity),
@@ -365,10 +357,7 @@ impl Activity {
         }
     }
 
-    pub fn editor(
-        session_id: String,
-        activity: EditorActivity,
-    ) -> Self {
+    pub fn editor(session_id: String, activity: EditorActivity) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             activity_type: ActivityType::Editor(activity),
@@ -450,10 +439,8 @@ impl PrivacyFilter {
             .iter()
             .map(|p| regex::Regex::new(p))
             .collect::<Result<Vec<_>, _>>()?;
-        
-        Ok(Self {
-            redaction_patterns,
-        })
+
+        Ok(Self { redaction_patterns })
     }
 
     pub fn redact_text(&self, text: &str) -> String {
@@ -529,14 +516,14 @@ impl ExclusionFilter {
             .iter()
             .map(|p| regex::Regex::new(p))
             .collect::<Result<Vec<_>, _>>()?;
-        
+
         Ok(Self {
             exclude_paths: paths,
             exclude_patterns,
         })
     }
 
-    fn should_exclude_path(&self, path: &PathBuf) -> bool {
+    fn should_exclude_path(&self, path: &Path) -> bool {
         // Check exact paths
         if self.exclude_paths.iter().any(|p| path.starts_with(p)) {
             return true;
@@ -571,27 +558,21 @@ mod tests {
 
     #[test]
     fn test_command_activity_creation() {
-        let cmd = CommandActivity::new(
-            "cargo build".to_string(),
-            "/home/user/project".to_string(),
-        );
+        let cmd = CommandActivity::new("cargo build".to_string(), "/home/user/project".to_string());
         assert_eq!(cmd.command, "cargo build");
         assert_eq!(cmd.working_directory, "/home/user/project");
     }
 
     #[test]
     fn test_file_change_activity() {
-        let file_change = FileChangeActivity::new(
-            PathBuf::from("src/main.rs"),
-            FileChangeType::Modified,
-        );
+        let file_change =
+            FileChangeActivity::new(PathBuf::from("src/main.rs"), FileChangeType::Modified);
         assert_eq!(file_change.file_type, "rs");
     }
 
     #[test]
     fn test_clipboard_type_detection() {
-        let clip = ClipboardActivity::new("https://example.com".to_string())
-            .detect_type();
+        let clip = ClipboardActivity::new("https://example.com".to_string()).detect_type();
         matches!(clip.content_type, ClipboardType::Url);
     }
 
@@ -599,22 +580,20 @@ mod tests {
     fn test_activity_session() {
         let mut session = ActivitySession::new("Test session".to_string());
         assert_eq!(session.activities.len(), 0);
-        
+
         let activity = Activity::command(
             session.id.clone(),
             CommandActivity::new("test".to_string(), "/tmp".to_string()),
         );
         session.add_activity(activity);
-        
+
         assert_eq!(session.activities.len(), 1);
     }
 
     #[test]
     fn test_privacy_filter() {
-        let filter = PrivacyFilter::new(vec![
-            "password.*=.*".to_string(),
-        ]).unwrap();
-        
+        let filter = PrivacyFilter::new(vec!["password.*=.*".to_string()]).unwrap();
+
         let text = "command --password=secret123";
         let redacted = filter.redact_text(text);
         assert!(redacted.contains("[REDACTED]"));
@@ -623,13 +602,13 @@ mod tests {
     #[test]
     fn test_size_filter() {
         let filter = SizeFilter::new(100);
-        
+
         let small_clip = Activity::clipboard(
             "session1".to_string(),
             ClipboardActivity::new("small".to_string()),
         );
         assert!(filter.should_include(&small_clip));
-        
+
         let large_content = "x".repeat(200);
         let large_clip = Activity::clipboard(
             "session1".to_string(),
@@ -638,5 +617,3 @@ mod tests {
         assert!(!filter.should_include(&large_clip));
     }
 }
-
-

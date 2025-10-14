@@ -12,14 +12,11 @@ pub struct FileWatcher {
     activity_tx: mpsc::Sender<Activity>,
     watch_paths: Vec<PathBuf>,
     exclude_patterns: Vec<String>,
-    max_file_size: u64,  // Maximum file size to process (bytes)
+    max_file_size: u64, // Maximum file size to process (bytes)
 }
 
 impl FileWatcher {
-    pub fn new(
-        activity_tx: mpsc::Sender<Activity>,
-        watch_paths: Vec<PathBuf>,
-    ) -> Self {
+    pub fn new(activity_tx: mpsc::Sender<Activity>, watch_paths: Vec<PathBuf>) -> Self {
         Self {
             watcher: None,
             activity_tx,
@@ -72,16 +69,11 @@ impl FileWatcher {
         // Spawn event processor
         let activity_tx = self.activity_tx.clone();
         let exclude_patterns = self.exclude_patterns.clone();
-        
+
         tokio::spawn(async move {
             while let Some(event) = rx.recv().await {
-                if let Err(e) = Self::process_event(
-                    event,
-                    &activity_tx,
-                    &session_id,
-                    &exclude_patterns,
-                )
-                .await
+                if let Err(e) =
+                    Self::process_event(event, &activity_tx, &session_id, &exclude_patterns).await
                 {
                     warn!("Error processing file event: {}", e);
                 }
@@ -118,25 +110,29 @@ impl FileWatcher {
             }
 
             let file_activity = FileChangeActivity::new(path.clone(), change_type.clone());
-            
+
             // Calculate file size and skip if too large
             let file_activity = if let Ok(metadata) = std::fs::metadata(&path) {
                 let mut activity = file_activity;
                 activity.size_bytes = metadata.len();
-                
+
                 // Skip files that are too large to avoid memory issues
-                if activity.size_bytes > 100 * 1024 {  // 100KB limit
-                    debug!("Skipping large file: {:?} ({} bytes)", path, activity.size_bytes);
+                if activity.size_bytes > 100 * 1024 {
+                    // 100KB limit
+                    debug!(
+                        "Skipping large file: {:?} ({} bytes)",
+                        path, activity.size_bytes
+                    );
                     continue;
                 }
-                
+
                 activity
             } else {
                 file_activity
             };
 
             let activity = Activity::file_change(session_id.to_string(), file_activity);
-            
+
             // Use try_send to avoid blocking
             if let Err(e) = tx.try_send(activity) {
                 debug!("Failed to send file activity: {}", e);
@@ -150,7 +146,7 @@ impl FileWatcher {
 
     fn should_exclude(path: &Path, exclude_patterns: &[String]) -> bool {
         let path_str = path.to_string_lossy();
-        
+
         for pattern in exclude_patterns {
             if path_str.contains(pattern) {
                 return true;
@@ -181,7 +177,7 @@ impl FileWatcher {
         // TODO: Implement diff calculation
         // This would integrate with git diff or implement a simple line-based diff
         // For now, return None
-        
+
         None
     }
 }
@@ -211,12 +207,12 @@ mod tests {
             Path::new("/tmp/project/node_modules/file.js"),
             &["node_modules".to_string()]
         ));
-        
+
         assert!(FileWatcher::should_exclude(
             Path::new("/tmp/project/.git/config"),
             &[".git".to_string()]
         ));
-        
+
         assert!(!FileWatcher::should_exclude(
             Path::new("/tmp/project/src/main.rs"),
             &["node_modules".to_string(), ".git".to_string()]
@@ -225,10 +221,6 @@ mod tests {
 
     #[test]
     fn test_hidden_file_exclusion() {
-        assert!(FileWatcher::should_exclude(
-            Path::new("/tmp/.hidden"),
-            &[]
-        ));
+        assert!(FileWatcher::should_exclude(Path::new("/tmp/.hidden"), &[]));
     }
 }
-

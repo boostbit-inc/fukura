@@ -5,6 +5,20 @@ All notable changes to Fukura will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5] - 2025-01-27
+
+### Fixed
+- Fixed clippy linting errors across the codebase
+- Improved code quality with proper error handling patterns
+- Fixed dead code warnings in remote search functionality
+- Improved iterator patterns for better performance
+- Fixed field initialization patterns to follow Rust best practices
+
+### Changed
+- Updated code formatting to follow Rust conventions
+- Improved test error handling with proper panic messages
+- Enhanced code documentation and removed empty lines after doc comments
+
 ## [0.3.4] - 2025-10-10
 
 ### Added

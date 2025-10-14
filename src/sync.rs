@@ -12,22 +12,22 @@ pub async fn push_note(repo: &FukuraRepo, object_id: &str, remote: &str) -> Resu
     let record = repo
         .load_note(object_id)
         .with_context(|| format!("Failed to load note {}", object_id))?;
-    
+
     // Get authentication token from environment or config
     let token = std::env::var("FUKURA_TOKEN")
         .or_else(|_| std::env::var("FUKURA_API_TOKEN"))
         .unwrap_or_default();
-    
+
     let client = Client::new();
     let url = format!("{}/v1/notes", normalize_remote(remote));
-    
+
     let mut request = client.post(url).json(&record);
-    
+
     // Add authorization header if token is available
     if !token.is_empty() {
         request = request.header("Authorization", format!("Bearer {}", token));
     }
-    
+
     let response = request
         .send()
         .await
@@ -52,17 +52,17 @@ pub async fn pull_note(repo: &FukuraRepo, object_id: &str, remote: &str) -> Resu
     let token = std::env::var("FUKURA_TOKEN")
         .or_else(|_| std::env::var("FUKURA_API_TOKEN"))
         .unwrap_or_default();
-    
+
     let client = Client::new();
     let url = format!("{}/v1/notes/{}", normalize_remote(remote), object_id);
-    
+
     let mut request = client.get(url);
-    
+
     // Add authorization header if token is available
     if !token.is_empty() {
         request = request.header("Authorization", format!("Bearer {}", token));
     }
-    
+
     let response = request
         .send()
         .await

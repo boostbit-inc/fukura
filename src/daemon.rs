@@ -29,8 +29,8 @@ pub struct DaemonConfig {
     pub enable_clipboard_monitoring: bool,
     pub enable_process_monitoring: bool,
     pub error_threshold: f64,
-    pub max_commands_per_session: usize,  // NEW: Limit commands to prevent memory issues
-    pub enable_activity_tracking: bool,   // NEW: Enable comprehensive activity tracking
+    pub max_commands_per_session: usize, // NEW: Limit commands to prevent memory issues
+    pub enable_activity_tracking: bool,  // NEW: Enable comprehensive activity tracking
 }
 
 impl Default for DaemonConfig {
@@ -42,8 +42,8 @@ impl Default for DaemonConfig {
             enable_clipboard_monitoring: false,        // Off by default for privacy
             enable_process_monitoring: false,          // Off by default for performance
             error_threshold: 0.7,
-            max_commands_per_session: 1000,           // Limit to 1000 commands per session
-            enable_activity_tracking: false,          // Off by default until explicitly enabled
+            max_commands_per_session: 1000, // Limit to 1000 commands per session
+            enable_activity_tracking: false, // Off by default until explicitly enabled
         }
     }
 }
@@ -122,7 +122,7 @@ impl FukuraDaemon {
     pub async fn get_commands_since(&self, since: SystemTime) -> Vec<CommandEntry> {
         let sessions = self.sessions.read().await;
         let mut commands = Vec::new();
-        
+
         for session in sessions.values() {
             for command in &session.commands {
                 if command.timestamp >= since {
@@ -130,7 +130,7 @@ impl FukuraDaemon {
                 }
             }
         }
-        
+
         // Sort by timestamp
         commands.sort_by_key(|cmd| cmd.timestamp);
         commands
@@ -139,20 +139,32 @@ impl FukuraDaemon {
     /// Create a recording session from historical commands
     pub async fn create_recording_from_time(&self, since: SystemTime, title: String) -> Result<()> {
         let commands = self.get_commands_since(since).await;
-        
+
         if commands.is_empty() {
             anyhow::bail!("No commands found since the specified time");
         }
-        
+
         // Create recording file with historical commands
         let recording_file = self.repo_path.join(".fukura").join("recording");
         let timestamp = since.duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
-        let content = format!("{}|{}|{}", timestamp, title, 
-            commands.iter()
-                .map(|cmd| format!("{}:{}", cmd.timestamp.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs(), cmd.command))
+        let content = format!(
+            "{}|{}|{}",
+            timestamp,
+            title,
+            commands
+                .iter()
+                .map(|cmd| format!(
+                    "{}:{}",
+                    cmd.timestamp
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs(),
+                    cmd.command
+                ))
                 .collect::<Vec<_>>()
-                .join("\n"));
-        
+                .join("\n")
+        );
+
         std::fs::write(&recording_file, content)?;
         Ok(())
     }
@@ -1250,7 +1262,7 @@ impl FukuraDaemon {
             for (idx, cmd) in solution_steps.iter().enumerate() {
                 body.push_str(&format!("{}. `{}`\n", idx + 1, cmd.command));
             }
-            body.push_str("\n");
+            body.push('\n');
         }
 
         body.push_str("### 📋 Recent Command History\n\n");
