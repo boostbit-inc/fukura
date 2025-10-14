@@ -15,6 +15,18 @@
                   DowngradeErrorMessage="A newer version of Fukura is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
+    <!-- Custom action to remove old versions from common locations -->
+    <CustomAction Id="RemoveOldVersions"
+                  Directory="BIN_DIR"
+                  ExeCommand="cmd.exe /c &quot;for %%d in ('C:\Program Files\Fukura\bin' 'C:\Program Files (x86)\Fukura\bin' '%USERPROFILE%\.cargo\bin' '%USERPROFILE%\.local\bin') do (if exist %%d\fuku.exe del /q %%d\fuku.exe 2&gt;nul &amp; if exist %%d\fukura.exe del /q %%d\fukura.exe 2&gt;nul)&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="RemoveOldVersions" After="InstallFiles">NOT Installed</Custom>
+    </InstallExecuteSequence>
+
     <Feature Id="MainFeature" Title="Fukura CLI" Level="1">
       <ComponentRef Id="cmpFukuraExe" />
       <ComponentRef Id="cmpFukuExe" />
