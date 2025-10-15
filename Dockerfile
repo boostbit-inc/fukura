@@ -45,7 +45,8 @@ WORKDIR /app
 
 # Copy the built binaries from the builder stage
 COPY --from=builder /app/target/release/fukura ./fukura
-COPY --from=builder /app/target/release/fuku ./fuku
+# Create fuku symlink
+RUN ln -sf fukura fuku
 
 # Run the application
 ENTRYPOINT ["./fukura"]
