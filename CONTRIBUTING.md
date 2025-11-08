@@ -188,3 +188,7 @@ git push origin vX.Y.Z
 
 Feel free to open an issue for questions or discussions about contributing.
 
+## Contributors
+
+- @masaki-kasuga
+
