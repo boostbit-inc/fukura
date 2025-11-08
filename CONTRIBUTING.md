@@ -30,6 +30,16 @@ Thank you for your interest in contributing to Fukura! This document provides gu
 
 ## Development Workflow
 
+### Project Structure
+
+- Core code is organized by layer under `src/`:
+  - `ui/` for CLI and presentation
+  - `application/` for daemon orchestration and high-level workflows
+  - `domain/` for core models and business rules
+  - `infrastructure/` for storage, search, sync, and OS integrations
+  - `shared/` for cross-cutting utilities
+- Prefer adding new modules within the appropriate layer to keep dependencies clean.
+
 ### Code Style
 
 - Follow Rust's official style guidelines
