@@ -260,7 +260,12 @@ fuku sync                    # Syncs all notes by default (no --all needed)
 
 ```
 .
-├── src/                      # CLI implementation
+├── src/
+│   ├── ui/                   # CLI/TUI entry points and presentation
+│   ├── application/          # Use-case orchestrators and daemon control
+│   ├── domain/               # Core models and business rules
+│   ├── infrastructure/       # Storage, search, sync, OS integrations
+│   └── shared/               # Cross-cutting utilities
 ├── tests/                    # integration tests
 ├── installers/               # WiX template, macOS postinstall, Linux postinst
 ├── scripts/linux/build-apt-repo.sh  # helper to stage an APT repo

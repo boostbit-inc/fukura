@@ -29,27 +29,39 @@ This document provides a high-level overview of Fukura's architecture and design
 
 ## Core Components
 
-### 1. CLI Interface (`src/cli.rs`)
+### 1. CLI Interface (`src/ui/cli.rs`)
 - Command-line argument parsing using Clap
 - Interactive prompts using Dialoguer
 - Output formatting and display
 
-### 2. Repository Management (`src/repo.rs`)
+## Responsibility Map (Current Layout)
+
+| Layer | Modules (`src/…`) | Primary responsibilities |
+| --- | --- | --- |
+| `ui` | `ui/cli.rs`, `ui/browser.rs`, `main.rs` | Entry points, argument parsing, interactive flows, and rendering content for CLI/TUI usage. |
+| `application` | `application/daemon.rs`, `application/daemon_service.rs`, `application/activity_monitor.rs`, `application/config_cmd.rs` | Orchestrates long-running workflows, session/state management, daemon control, and high-level command behaviors. |
+| `domain` | `domain/activity.rs`, `domain/activity_storage.rs`, `domain/models.rs`, `domain/pack.rs`, `domain/redaction.rs` | Defines core data models, activity/state representations, storage abstractions, and content redaction rules. |
+| `infrastructure` | `infrastructure/repo.rs`, `infrastructure/config.rs`, `infrastructure/index.rs`, `infrastructure/remote_search.rs`, `infrastructure/sync.rs`, `infrastructure/file_watcher.rs`, `infrastructure/directory_monitor.rs`, `infrastructure/notification.rs`, `infrastructure/hooks.rs` | External integrations: filesystem repository, configuration persistence, search engine, remote HTTP, file watching, notifications, and shell hook management. |
+| `shared` | `shared/performance.rs`, `shared/time_parser.rs` | Cross-cutting utilities for metrics, rate limiting, and natural-language time handling. |
+
+**Other entry points:** `src/bin/` (auxiliary binaries) and integration tests under `tests/` exercise the combined layers.
+
+### 2. Repository Management (`src/infrastructure/repo.rs`)
 - Repository initialization and configuration
 - Note storage and retrieval
 - Object management (pack files, loose objects)
 
-### 3. Search Engine (`src/index.rs`)
+### 3. Search Engine (`src/infrastructure/index.rs`)
 - Full-text search using Tantivy
 - Index management and optimization
 - Search result ranking and filtering
 
-### 4. Data Models (`src/models.rs`)
+### 4. Data Models (`src/domain/models.rs`)
 - Note structure and metadata
 - Author information
 - Privacy settings and access control
 
-### 5. Storage System (`src/pack.rs`)
+### 5. Storage System (`src/domain/pack.rs`)
 - Content-addressable storage
 - Object compression and deduplication
 - Pack file management
