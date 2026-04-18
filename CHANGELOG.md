@@ -5,6 +5,38 @@ All notable changes to Fukura will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Release coordination
+
+Fukura ships as three repositories that interlock at the wire protocol:
+
+| Repo | Role | Versioning |
+|---|---|---|
+| `boostbit-inc/fukura` | CLI, EKP spec, client, MCP server | `v0.x.y` |
+| `boostbit-inc/fukura-hub` | Hub server (private, source-available) | `v0.x.y` |
+| `boostbit-inc/fukura-site` | Public site, rendered spec docs | `v1.x.y` |
+
+When a change touches more than one repo's public behaviour, the three
+are tagged **together** with matching minor versions (CLI/hub `v0.N.0`
+align with site `v1.N.0`). Patches cut on one repo independently only
+if they do not affect the others (e.g. a site CSS fix, a CLI bugfix
+below the wire layer).
+
+Tagging convention:
+
+- `fukura v0.N.0` lands first; contains the spec changes and client
+  work.
+- `fukura-hub v0.N.0` lands next; each P3 slice must be merged and
+  the contract-test job reporting green (once promoted out of
+  snapshot mode).
+- `fukura-site v1.N.0` lands last; updates the badges to match the
+  delivered state.
+
+The `v0.4.0` coordinated release is targeted once the following are
+all green on main: Tasks 0–4 (contract tests wired, CLI MUSTs shipped,
+site docs published, hub CI live) plus P3 Slice 1 (attempts table).
+Slices 2–5 can ship as `v0.4.1`, `v0.4.2`, … or roll into `v0.5.0`
+depending on scope.
+
 ## [0.3.7] - 2025-01-27
 
 ### Fixed
