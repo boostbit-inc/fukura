@@ -45,17 +45,17 @@ Versions referenced: `fukura` (CLI crate) as of `v0.3.8`; `fukura-hub`
 | §5.2 `POST /v1/attempts` (batch, partial accept) | ✅ v0.3 | 🚧 v0.4 (P3 Slice 1 — attempts table) | 🚧 v1.1 (/docs/effectiveness) |
 | §5.2 `GET /v1/attempts/stats` | ✅ v0.3 | 🚧 v0.4 (P3 Slice 1) | 🚧 v1.1 |
 | §5.3 `GET /v1/health` (unauth, `{status,version,hub_id}`) | ✅ v0.3 | 🚧 v0.4 (current route is `/health` and returns `{status,service,version}`) | 🚧 v1.1 |
-| §5.3 `GET /v1/info` (authed policy advertisement) | ✅ v0.3 (cached locally 🚧 Task 3) | 🚧 v0.4 (P3 Slice 3) | 🚧 v1.1 |
-| §6 Idempotency (repost body → 200 + existing `object_id`) | 🚧 v0.4 Task 3 (`Idempotency-Key` header) | 🚧 v0.4 (P3 Slice 3 — UPSERT on `object_id`) | N/A |
+| §5.3 `GET /v1/info` (authed policy advertisement) | ✅ v0.3 (1h cache added in v0.4 Task 3) | 🚧 v0.4 (P3 Slice 3) | 🚧 v1.1 |
+| §6 Idempotency (repost body → 200 + existing `object_id`) | ✅ v0.4 (`Idempotency-Key` header on every POST) | 🚧 v0.4 (P3 Slice 3 — UPSERT on `object_id`) | N/A |
 | §6 Idempotency (attempt_id dedup) | ✅ v0.3 | 🚧 v0.4 (P3 Slice 1) | N/A |
 | §7 Pagination (opaque cursors, no client parsing) | ✅ v0.3 | 🚧 v0.4 (currently offset) | 🚧 v1.1 |
-| §8 Rate limiting (429 + `Retry-After`, client honors + backoff) | 🚧 v0.4 Task 3 | 🚧 v0.4 (P3 Slice 3) | 🚧 v1.1 |
-| §9 Size limits (256 KiB / 500 / 8 MiB → 413) | 🚧 v0.4 Task 3 (client-side check) | 🚧 v0.4 (P3 Slice 3) | 🚧 v1.1 |
+| §8 Rate limiting (429 + `Retry-After`, client honors + backoff) | ✅ v0.4 (Task 3) | 🚧 v0.4 (P3 Slice 3) | 🚧 v1.1 |
+| §9 Size limits (256 KiB / 500 / 8 MiB → 413) | ✅ v0.4 (Task 3) (client-side check) | 🚧 v0.4 (P3 Slice 3) | 🚧 v1.1 |
 | §10.1 Client MUST: local redaction before send | ✅ v0.3 | N/A | 🚧 v1.1 |
-| §10.2 Client MUST: reject `private` pre-network | 🚧 v0.4 Task 3 | N/A | N/A |
-| §10.3 Client MUST: parse + honor `info` limits | 🚧 v0.4 Task 3 (1h cache) | N/A | N/A |
-| §10.4 Client MUST: retry 5xx/429 with backoff | 🚧 v0.4 Task 3 | N/A | N/A |
-| §10.5 Client SHOULD: `Idempotency-Key` on retries | 🚧 v0.4 Task 3 | 🚧 v0.4 (server dedup, Slice 3) | N/A |
+| §10.2 Client MUST: reject `private` pre-network | ✅ v0.4 (Task 3) | N/A | N/A |
+| §10.3 Client MUST: parse + honor `info` limits | ✅ v0.4 (Task 3) (1h cache) | N/A | N/A |
+| §10.4 Client MUST: retry 5xx/429 with backoff | ✅ v0.4 (Task 3) | N/A | N/A |
+| §10.5 Client SHOULD: `Idempotency-Key` on retries | ✅ v0.4 (Task 3) | 🚧 v0.4 (server dedup, Slice 3) | N/A |
 | §11 Error body (`{code,message,retryable}`) | ✅ v0.3 (parses both shapes today) | 🚧 v0.4 (P3 Slice 3 — currently `{"error":"<string>"}`) | 🚧 v1.1 |
 | §12 Forward compatibility (ignore unknown fields, round-trip unknown ontology) | ✅ v0.3 | 🚧 v0.4 (P3 Slice 2 — JSONB ontology) | N/A |
 

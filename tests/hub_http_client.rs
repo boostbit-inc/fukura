@@ -43,6 +43,12 @@ struct FakeState {
     attempts: Arc<Mutex<Vec<SolutionAttempt>>>,
     /// When true, the next upload returns 401 to exercise error handling.
     reject_next: Arc<Mutex<bool>>,
+    /// Count of 429s to issue before succeeding. Each failing response
+    /// decrements the counter. Used by the retry-loop test.
+    throttle_next: Arc<Mutex<u32>>,
+    /// Records the Idempotency-Key header seen on each upload so tests
+    /// can assert retries reuse the same key.
+    seen_idempotency_keys: Arc<Mutex<Vec<String>>>,
 }
 
 async fn health() -> Json<HealthResponse> {
@@ -69,8 +75,28 @@ async fn info(headers: HeaderMap) -> impl IntoResponse {
 
 async fn upload_note(
     State(state): State<FakeState>,
+    headers: HeaderMap,
     Json(envelope): Json<NoteEnvelope>,
 ) -> impl IntoResponse {
+    if let Some(key) = headers
+        .get("idempotency-key")
+        .and_then(|v| v.to_str().ok())
+    {
+        state.seen_idempotency_keys.lock().await.push(key.to_string());
+    }
+    let mut throttle = state.throttle_next.lock().await;
+    if *throttle > 0 {
+        *throttle -= 1;
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            [("retry-after", "0")],
+            Json(json!({
+                "error": { "code": "rate_limited", "message": "slow down", "retryable": true }
+            })),
+        )
+            .into_response();
+    }
+    drop(throttle);
     if *state.reject_next.lock().await {
         *state.reject_next.lock().await = false;
         return (
@@ -414,6 +440,53 @@ async fn client_surfaces_standard_error_body() {
     assert!(
         msg.contains("unauthorized") || msg.contains("missing token"),
         "error body should surface: {msg}"
+    );
+}
+
+#[tokio::test]
+async fn upload_retries_on_429_and_reuses_idempotency_key() {
+    let target = TestTarget::start().await;
+    let Some(state) = target.mock_state() else {
+        eprintln!(
+            "SKIP upload_retries_on_429_and_reuses_idempotency_key in external mode: \
+             requires mock state to count forced 429 responses."
+        );
+        return;
+    };
+    // Make the first two uploads 429; the third should succeed.
+    *state.throttle_next.lock().await = 2;
+
+    let client = HttpHubClient::new(HttpHubConfig {
+        base_url: target.base_url().to_string(),
+        token: Some(target.token()),
+        retry: fukura::hub::RetryPolicy {
+            max_attempts: 4,
+            base: std::time::Duration::from_millis(10),
+            cap: std::time::Duration::from_millis(50),
+        },
+        ..Default::default()
+    })
+    .unwrap();
+
+    let envelope = sample_note();
+    let uploaded = client.upload_note(&envelope).await.unwrap();
+    assert!(uploaded.object_id.starts_with("sha256:"));
+
+    let keys = state.seen_idempotency_keys.lock().await.clone();
+    assert_eq!(
+        keys.len(),
+        3,
+        "expected exactly 3 upload attempts (2×429 then 200), saw {keys:?}"
+    );
+    assert_eq!(
+        keys.iter().collect::<std::collections::HashSet<_>>().len(),
+        1,
+        "every retry should reuse the same Idempotency-Key; saw {keys:?}"
+    );
+    assert!(
+        uuid::Uuid::parse_str(&keys[0]).is_ok(),
+        "Idempotency-Key must be a UUID; saw {:?}",
+        keys[0]
     );
 }
 
