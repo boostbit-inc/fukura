@@ -16,3 +16,4 @@ done by adding a new ADR and flipping the old one's status to
 | [0005](./0005-private-tier-existing-rows-keep.md) | Existing `privacy=private` rows are kept on the server | Accepted |
 | [0006](./0006-m6-zero-downtime-three-stage.md) | Rename the `team` privacy enum to `org` via a 3-stage deploy | Accepted |
 | [0007](./0007-p3-slice-1-attempts-table.md) | P3 Slice 1 — add the `attempts` table | Accepted |
+| [0008](./0008-positioning-as-agent-era-effectiveness.md) | Position fukura as agent-era effectiveness tooling, not a note store | Accepted |

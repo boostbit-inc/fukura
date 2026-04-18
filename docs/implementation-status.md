@@ -77,8 +77,27 @@ shipping anyway as hub-specific extensions.
 | Capability | fukura-hub | fukura-site | Notes |
 |---|---|---|---|
 | Note-body forward compat (round-trip `links` / `meta` / `solutions` unchanged) | ✅ v0.1 (JSONB `extras` column) | N/A | Beyond spec §12 MUST — spec only requires "ignore"; we preserve. |
-| SSE real-time attempt feed `GET /v1/stream/attempts` | ✅ v0.1 (hub extension; documented as non-portable) | 🚧 v1.1 | Spec §13 listed this as "non-goal, can be built on top later". In-process broadcast, authenticated. |
+| SSE real-time attempt feed `GET /v1/stream/attempts` | ✅ v0.1 (hub extension; documented as non-portable) | ✅ v1.x (surfaced in `/effectiveness` dashboard via LiveFeed) | Spec §13 listed this as "non-goal, can be built on top later". In-process broadcast, authenticated. |
+| Agent-kind split `GET /v1/attempts/stats/by-agent` | ✅ v0.1 (hub extension) | ✅ v1.x (HumanVsAgentSplit widget) | Unblocks the human-vs-agent widget on the effectiveness dashboard. |
 | Federation / k-anonymity | 🚧 draft spec (`docs/ekp-federation.md`) | 🚧 v1.1 | v0.1 draft with k=5 default, per-window salted hub-id hashes, Ed25519-signed contributions. Implementation pending spec review. |
+
+## Product surfaces
+
+Beyond spec conformance: the screens and pages a buyer actually
+interacts with.
+
+| Surface | Status |
+|---|---|
+| Hub `/effectiveness` dashboard (post-login landing, pain-rank table, human-vs-agent split, recurring-pattern list, coverage donut, live SSE feed) | ✅ v0.1 |
+| Hub `ContextSwitcher` in Navbar (personal / org context toggle via JWT `org_id` claim) | ✅ v0.1 |
+| Site home page (hero / problem / how-it-works / metric / social / CTA) | ✅ v1.x |
+| Site `/pricing` (Free / Team / Enterprise) | ✅ v1.x |
+| Site `/compare` (concrete per-competitor paragraphs) | ✅ v1.x |
+| Site `/why-fukura` (positioning thesis per ADR 0008) | ✅ v1.x |
+| Site `/docs/quickstart` | ✅ v1.x |
+| Site `/docs/deploy-hub` | ✅ v1.x |
+| Site `/security` | ✅ v1.x |
+| Site `/docs/cli-reference` (moved from `/docs`) | ✅ v1.x |
 
 ## Contract testing (alignment doc §4)
 
