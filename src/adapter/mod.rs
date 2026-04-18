@@ -16,6 +16,7 @@ use std::sync::Arc;
 use crate::domain::ontology::ErrorOntology;
 
 pub mod builtin;
+pub mod enrich;
 
 /// Raw context handed to adapters. Adapters MUST NOT mutate this value.
 #[derive(Debug, Clone, Default)]
