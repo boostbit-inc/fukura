@@ -31,6 +31,7 @@ dist/
 !docs/README.md
 !docs/security.md
 !docs/ekp-spec.md
+!docs/fukurahub-api.md
 !docs/developer/*.md
 !docs/user-guide/*.md
 
