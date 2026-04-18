@@ -333,6 +333,16 @@ pub enum Commands {
     #[command(name = "restart", about = "Restart the error capture daemon")]
     Restart,
 
+    /// Run as a Model Context Protocol (MCP) server over stdio.
+    /// Lets MCP-compatible agents (Claude Code, Cursor, ...) classify
+    /// invocations, search prior notes, record new errors, and check
+    /// commands for known failure patterns.
+    #[command(
+        name = "mcp",
+        about = "Serve fukura's adapter pipeline and note repo over MCP (stdio)"
+    )]
+    Mcp(McpCommand),
+
     /// Manage daemon (advanced options)
     #[command(
         name = "daemon",
@@ -728,6 +738,16 @@ pub enum ConfigCommand {
 }
 
 #[derive(Debug, Args)]
+pub struct McpCommand {
+    /// Path to a fukura repository to expose. When omitted, the server
+    /// auto-discovers a `.fukura/` directory in the current working tree
+    /// (or runs without a repository, supporting only stateless tools
+    /// like `fukura_classify`).
+    #[arg(long, value_name = "PATH")]
+    pub repo: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
 pub struct RemoteCommand {
     #[arg(long, value_name = "URL", help = "Set remote URL")]
     set: Option<String>,
@@ -841,6 +861,7 @@ pub async fn run() -> Result<()> {
         Commands::Log(cmd) => handle_log(&cli, cmd).await?,
         Commands::Show(cmd) => handle_show_activity(&cli, cmd).await?,
         Commands::Track(cmd) => handle_track(&cli, cmd).await?,
+        Commands::Mcp(cmd) => crate::application::mcp::run(cmd.repo.clone()).await?,
     }
     Ok(())
 }

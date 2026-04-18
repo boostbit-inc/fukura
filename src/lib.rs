@@ -8,6 +8,7 @@ pub mod application {
     pub mod config_cmd;
     pub mod daemon;
     pub mod daemon_service;
+    pub mod mcp;
 }
 
 pub mod domain {
@@ -42,6 +43,7 @@ pub use application::activity_monitor;
 pub use application::config_cmd;
 pub use application::daemon;
 pub use application::daemon_service;
+pub use application::mcp;
 pub use domain::activity;
 pub use domain::activity_storage;
 pub use domain::models;
