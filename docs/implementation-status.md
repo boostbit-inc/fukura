@@ -36,7 +36,7 @@ Versions referenced: `fukura` (CLI crate) as of `v0.3.8`; `fukura-hub`
 | Spec section | fukura CLI (client) | fukura-hub (server) | fukura-site (docs) |
 |---|---|---|---|
 | §2 Transport (HTTPS, JSON, UTF-8, `/v1/` prefix) | ✅ v0.3 (`HttpHubClient`) | ✅ v0.1 (P3 Slice 3 landed; `/api/*` coexists per ADR 0003) | 🚧 v1.1 (/docs/hub-api) |
-| §3 Authentication (`Authorization: Bearer`) | ✅ v0.3 | ✅ v0.1 (JWT + argon2 + OAuth); org-id claim scoping 🚧 (ADR 0004, follow-up) | 🚧 v1.1 |
+| §3 Authentication (`Authorization: Bearer`) | ✅ v0.3 | ✅ v0.1 (JWT + argon2 + OAuth; org_id claim scoping via `/api/auth/switch-context`, ADR 0004) | 🚧 v1.1 |
 | §4 Privacy tiers (`private`/`org`/`public`) | ✅ v0.3 | ✅ v0.1 (P3 Slice 4 — single-shot `team`→`org` rename landed) | 🚧 v1.1 |
 | §5.1 `POST /v1/notes` (envelope in, `{object_id,url,ontology}` out) | ✅ v0.3 | ✅ v0.1 (P3 Slice 3 landed) | 🚧 v1.1 |
 | §5.1 `GET /v1/notes/{object_id}` | ✅ v0.3 | ✅ v0.1 (P3 Slice 3 landed) | 🚧 v1.1 |
