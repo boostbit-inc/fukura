@@ -33,6 +33,7 @@ dist/
 !docs/ekp-spec.md
 !docs/fukurahub-api.md
 !docs/handoff.md
+!docs/next-session-prompt.md
 !docs/developer/*.md
 !docs/user-guide/*.md
 
