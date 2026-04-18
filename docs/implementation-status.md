@@ -49,7 +49,7 @@ Versions referenced: `fukura` (CLI crate) as of `v0.3.8`; `fukura-hub`
 | §6 Idempotency (repost body → 200 + existing `object_id`) | ✅ v0.4 (`Idempotency-Key` header on every POST) | ✅ v0.1 (content-addressable sha256 object_id, UNIQUE constraint) | N/A |
 | §6 Idempotency (attempt_id dedup) | ✅ v0.3 | ✅ v0.1 (UNIQUE attempt_id + ON CONFLICT DO NOTHING) | N/A |
 | §7 Pagination (opaque cursors, no client parsing) | ✅ v0.3 | ✅ v0.1 (base64 offset cursor; P3 Slice 3 landed) | 🚧 v1.1 |
-| §8 Rate limiting (429 + `Retry-After`, client honors + backoff) | ✅ v0.4 (Task 3) | 🚧 follow-up (advertised limit via `/v1/info` but no enforcement yet) | 🚧 v1.1 |
+| §8 Rate limiting (429 + `Retry-After`, client honors + backoff) | ✅ v0.4 (Task 3) | ✅ v0.1 (per-user token bucket at 600 req/min, 429 + Retry-After on exceed) | 🚧 v1.1 |
 | §9 Size limits (256 KiB / 500 / 8 MiB → 413) | ✅ v0.4 (Task 3) (client-side check) | ✅ v0.1 (POST /v1/notes → 413 over 256 KiB; batch cap on attempts) | 🚧 v1.1 |
 | §10.1 Client MUST: local redaction before send | ✅ v0.3 | N/A | 🚧 v1.1 |
 | §10.2 Client MUST: reject `private` pre-network | ✅ v0.4 (Task 3) | N/A | N/A |
