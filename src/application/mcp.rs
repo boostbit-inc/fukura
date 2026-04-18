@@ -254,14 +254,29 @@ impl Server {
         let req: PreflightRequest = serde_json::from_value(args).context("preflight args")?;
         let repo = self.require_repo()?;
 
-        // Heuristic v0.1: search the note index by command head. A future
-        // version will look up by EKP fingerprint once the registry can
-        // synthesise one from a command alone (no exit_code yet means we
-        // cannot run the full classifier).
+        // Start with a keyword search off the command head, which is
+        // cheap and catches text-level overlaps even when an adapter
+        // cannot synthesise a tight fingerprint.
         let head = first_token(&req.command);
         let hits = repo
             .search(head, 5, SearchSort::Relevance)
             .unwrap_or_default();
+
+        // Then ask the adapter registry for a *predicted* fingerprint
+        // from the command alone (no stderr / exit_code yet). When the
+        // prediction lines up with a note's stored fingerprint, that
+        // note is a tighter match than generic keyword hits and gets
+        // surfaced first.
+        let predicted_fingerprint = {
+            let registry = crate::adapter::AdapterRegistry::with_builtins();
+            let ctx = crate::adapter::InvocationContext {
+                command: req.command.clone(),
+                exit_code: Some(1),
+                stderr: Some(String::new()),
+                ..Default::default()
+            };
+            registry.synthesise_pre_fingerprint(&ctx)
+        };
 
         let store = AttemptStore::open(repo.dot_dir()).ok();
         let stats_by_fp = store
@@ -269,7 +284,7 @@ impl Server {
             .and_then(|s| s.stats_by_fingerprint().ok())
             .unwrap_or_default();
 
-        let warnings: Vec<Value> = hits
+        let mut annotated: Vec<(bool, Value)> = hits
             .into_iter()
             .map(|h| {
                 // Resolve fingerprint by loading the note; SearchHit does
@@ -282,12 +297,17 @@ impl Server {
                     .ok()
                     .and_then(|r| r.note.ontology.map(|o| o.fingerprint));
                 let stats = fp.as_deref().and_then(|f| stats_by_fp.get(f));
-                json!({
+                let matches_prediction =
+                    fp.as_deref().zip(predicted_fingerprint.as_deref())
+                        .map(|(a, b)| a == b)
+                        .unwrap_or(false);
+                let entry = json!({
                     "note_id": h.object_id,
                     "title": h.title,
                     "tags": h.tags,
                     "snippet": h.summary,
                     "fingerprint": fp,
+                    "matches_predicted_fingerprint": matches_prediction,
                     "effectiveness": stats.map(|s| json!({
                         "success": s.success,
                         "failure": s.failure,
@@ -295,12 +315,19 @@ impl Server {
                         "total": s.total(),
                         "success_rate": s.success_rate(),
                     })),
-                })
+                });
+                (matches_prediction, entry)
             })
             .collect();
 
+        // Stable sort: prediction-matches first, everything else in
+        // original order.
+        annotated.sort_by(|a, b| b.0.cmp(&a.0));
+        let warnings: Vec<Value> = annotated.into_iter().map(|(_, v)| v).collect();
+
         Ok(serde_json::to_string_pretty(&json!({
             "command": req.command,
+            "predicted_fingerprint": predicted_fingerprint,
             "warnings": warnings,
         }))?)
     }

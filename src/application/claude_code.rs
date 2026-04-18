@@ -57,6 +57,12 @@ pub struct RegisterOptions {
     /// When true, compute the change but do not write the file. Used by
     /// the CLI's `--dry-run` flag and the tests.
     pub dry_run: bool,
+    /// Explicit override of the config file path. When `Some`, the
+    /// scope-based `resolve_config_path` is bypassed and the register
+    /// writes here instead. Intended for tests and for users who
+    /// keep Claude Code config in a non-default location (e.g. a
+    /// checked-in project template).
+    pub config_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,7 +83,10 @@ pub enum UnregisterOutcome {
 }
 
 pub fn register(opts: &RegisterOptions) -> Result<RegisterOutcome> {
-    let path = resolve_config_path(opts.scope)?;
+    let path = match &opts.config_path {
+        Some(p) => p.clone(),
+        None => resolve_config_path(opts.scope)?,
+    };
     let mut root = load_or_empty_object(&path)?;
     ensure_object(&mut root);
 
@@ -105,7 +114,18 @@ pub fn register(opts: &RegisterOptions) -> Result<RegisterOutcome> {
 }
 
 pub fn unregister(scope: Scope, dry_run: bool) -> Result<UnregisterOutcome> {
-    let path = resolve_config_path(scope)?;
+    unregister_at(scope, dry_run, None)
+}
+
+pub fn unregister_at(
+    scope: Scope,
+    dry_run: bool,
+    config_path: Option<PathBuf>,
+) -> Result<UnregisterOutcome> {
+    let path = match config_path {
+        Some(p) => p,
+        None => resolve_config_path(scope)?,
+    };
     if !path.exists() {
         return Ok(UnregisterOutcome::NotPresent { path });
     }
@@ -208,6 +228,7 @@ mod tests {
             binary: binary.to_path_buf(),
             repo: None,
             dry_run: false,
+            config_path: None,
         }
     }
 

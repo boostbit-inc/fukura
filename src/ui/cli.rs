@@ -222,7 +222,7 @@ pub struct Cli {
         long = "repo",
         global = true,
         value_name = "PATH",
-        help = "Path to the repository root (defaults to CWD)"
+        help = "Path to a local fukura repository (defaults to CWD; ignored by 'hub', which uses --url instead)"
     )]
     repo: Option<PathBuf>,
 
@@ -869,6 +869,11 @@ pub struct ClaudeCodeRegisterArgs {
     pub repo: Option<PathBuf>,
     #[arg(long, value_name = "PATH")]
     pub binary: Option<PathBuf>,
+    /// Override the Claude Code config file path. Bypasses `--scope`
+    /// resolution; useful for tests and for users whose config lives
+    /// outside the standard `~/.claude.json` / `./.mcp.json` paths.
+    #[arg(long, value_name = "PATH")]
+    pub config_path: Option<PathBuf>,
     #[arg(long)]
     pub dry_run: bool,
 }
@@ -877,6 +882,9 @@ pub struct ClaudeCodeRegisterArgs {
 pub struct ClaudeCodeUnregisterArgs {
     #[arg(long, value_enum, default_value_t = crate::claude_code::Scope::User)]
     pub scope: crate::claude_code::Scope,
+    /// Override the Claude Code config file path.
+    #[arg(long, value_name = "PATH")]
+    pub config_path: Option<PathBuf>,
     #[arg(long)]
     pub dry_run: bool,
 }
@@ -885,13 +893,24 @@ pub struct ClaudeCodeUnregisterArgs {
 pub struct ClaudeCodeStatusArgs {
     #[arg(long, value_enum, default_value_t = crate::claude_code::Scope::User)]
     pub scope: crate::claude_code::Scope,
+    /// Override the Claude Code config file path.
+    #[arg(long, value_name = "PATH")]
+    pub config_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
 pub struct HubCommand {
-    #[arg(long, value_name = "URL")]
+    #[arg(
+        long,
+        value_name = "URL",
+        help = "Base URL of the fukurahub server (e.g. https://hub.example.com). Overrides any configured default."
+    )]
     pub url: Option<String>,
-    #[arg(long, value_name = "TOKEN")]
+    #[arg(
+        long,
+        value_name = "TOKEN",
+        help = "Bearer token for authenticated requests. Overrides any configured default."
+    )]
     pub token: Option<String>,
     #[command(subcommand)]
     pub command: HubSubcommand,
@@ -1202,15 +1221,47 @@ async fn handle_hub(cmd: &HubCommand) -> Result<()> {
         HubSubcommand::SyncAttempts => {
             let repo = FukuraRepo::discover(None)?;
             let store = crate::attempt_storage::AttemptStore::open(repo.dot_dir())?;
+            let mut hub_state = crate::hub_state::HubState::open(repo.dot_dir())?;
             let all = store.load_all()?;
-            if all.is_empty() {
-                println!("no local attempts to sync");
+            let since = hub_state.last_attempts_synced_at();
+            let to_upload: Vec<_> = match since {
+                Some(cutoff) => all
+                    .into_iter()
+                    .filter(|a| a.occurred_at > cutoff)
+                    .collect(),
+                None => all,
+            };
+            if to_upload.is_empty() {
+                if let Some(cutoff) = since {
+                    println!("no new attempts since {cutoff}");
+                } else {
+                    println!("no local attempts to sync");
+                }
                 return Ok(());
             }
-            let receipt = client.upload_attempts(&all).await?;
+            let high_watermark = to_upload
+                .iter()
+                .map(|a| a.occurred_at)
+                .max()
+                .expect("non-empty");
+            let count = to_upload.len();
+            let receipt = client.upload_attempts(&to_upload).await?;
+            // Only advance the marker if the batch was fully accepted;
+            // otherwise the next run retries the same range (the hub
+            // dedups via attempt_id UNIQUE).
+            if receipt.rejected == 0 {
+                hub_state.mark_attempts_synced_up_to(high_watermark)?;
+            }
             println!(
-                "synced {} attempts ({} rejected)",
-                receipt.accepted, receipt.rejected
+                "synced {} / {} attempts ({} rejected){}",
+                receipt.accepted,
+                count,
+                receipt.rejected,
+                if receipt.rejected == 0 {
+                    format!(" — next sync will start after {high_watermark}")
+                } else {
+                    " — marker not advanced due to rejections; retry will re-send".to_string()
+                }
             );
             for err in &receipt.errors {
                 println!("  index {} → {}: {}", err.index, err.code, err.message);
@@ -1236,6 +1287,7 @@ fn handle_claude_code(cmd: &ClaudeCodeCommand) -> Result<()> {
                 binary,
                 repo: args.repo.clone(),
                 dry_run: args.dry_run,
+                config_path: args.config_path.clone(),
             };
             let outcome = claude_code::register(&opts)?;
             let dry = if args.dry_run { " (dry-run)" } else { "" };
@@ -1256,7 +1308,7 @@ fn handle_claude_code(cmd: &ClaudeCodeCommand) -> Result<()> {
             println!("  Restart Claude Code to pick up the change.");
         }
         ClaudeCodeSubcommand::Unregister(args) => {
-            match claude_code::unregister(args.scope, args.dry_run)? {
+            match claude_code::unregister_at(args.scope, args.dry_run, args.config_path.clone())? {
                 UnregisterOutcome::Removed { path } => {
                     println!("✓ Removed fukura from {}", path.display())
                 }
@@ -1269,14 +1321,18 @@ fn handle_claude_code(cmd: &ClaudeCodeCommand) -> Result<()> {
             }
         }
         ClaudeCodeSubcommand::Status(args) => {
-            let path = match args.scope {
-                crate::claude_code::Scope::User => {
-                    let home =
-                        std::env::var_os("HOME").context("HOME environment variable is not set")?;
-                    PathBuf::from(home).join(crate::claude_code::USER_CONFIG)
-                }
-                crate::claude_code::Scope::Project => {
-                    std::env::current_dir()?.join(crate::claude_code::PROJECT_CONFIG)
+            let path = if let Some(p) = args.config_path.clone() {
+                p
+            } else {
+                match args.scope {
+                    crate::claude_code::Scope::User => {
+                        let home = std::env::var_os("HOME")
+                            .context("HOME environment variable is not set")?;
+                        PathBuf::from(home).join(crate::claude_code::USER_CONFIG)
+                    }
+                    crate::claude_code::Scope::Project => {
+                        std::env::current_dir()?.join(crate::claude_code::PROJECT_CONFIG)
+                    }
                 }
             };
             println!("config: {}", path.display());

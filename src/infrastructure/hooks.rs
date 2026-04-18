@@ -290,9 +290,20 @@ _fukura_record_command() {{
     local command="$_fukura_last_command"
     local working_dir="$PWD"
     local session_id=$(echo "$PWD" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "default")
-    
+
     if [ -n "$command" ] && [ -S "$_fukura_socket_path" ]; then
         echo "$session_id|$command|$exit_code|$working_dir" | nc -U -w 1 "$_fukura_socket_path" 2>/dev/null || true
+    fi
+
+    # Effectiveness backup path: when no daemon is listening on the
+    # socket the CLI still captures per-fingerprint success / failure
+    # / abandoned counts. Mirrors the zsh hook.
+    if [ -n "$command" ] && command -v fukura >/dev/null 2>&1; then
+        fukura attempt observe \
+            --session "$session_id" \
+            --command "$command" \
+            --exit-code "$exit_code" \
+            >/dev/null 2>&1 || true
     fi
 }}
 
@@ -403,9 +414,22 @@ function _fukura_record_command --on-event fish_prompt
     set -l exit_code $status
     set -l command (history | head -n1)
     set -l working_dir (pwd)
-    
+    set -l session_id (pwd | tr '/' '_')
+
     # Record command with exit code
-    fukura daemon record-command (pwd | tr '/' '_') "$command" "$exit_code" "$working_dir" 2>/dev/null || true
+    fukura daemon record-command $session_id "$command" "$exit_code" "$working_dir" 2>/dev/null || true
+
+    # Effectiveness backup path: when no daemon is listening the CLI
+    # still captures per-fingerprint counts. Mirrors the zsh hook.
+    if test -n "$command"
+        if type -q fukura
+            fukura attempt observe \
+                --session "$session_id" \
+                --command "$command" \
+                --exit-code "$exit_code" \
+                >/dev/null 2>&1 || true
+        end
+    end
 end
 
 function _fukura_record_error --on-event fish_postexec
@@ -423,16 +447,29 @@ end
 # Fukura hooks - PowerShell
 function _fukura_record_command {{
     param($command, $exitCode, $workingDir)
-    
+
+    $sessionId = (Get-Location | ForEach-Object {{ $_.Path -replace '\\\\', '_' -replace ':', '_' }})
+
     # Record command with exit code
-    fukura daemon record-command (Get-Location | ForEach-Object {{ $_.Path -replace '\\\\', '_' -replace ':', '_' }}) "$command" "$exitCode" "$workingDir" 2>$null
+    fukura daemon record-command $sessionId "$command" "$exitCode" "$workingDir" 2>$null
+
+    # Effectiveness backup path: when no daemon is listening the CLI
+    # still captures per-fingerprint counts. Mirrors the zsh hook.
+    if ($command -and (Get-Command fukura -ErrorAction SilentlyContinue)) {{
+        try {{
+            fukura attempt observe `
+                --session "$sessionId" `
+                --command "$command" `
+                --exit-code "$exitCode" 2>$null
+        }} catch {{}}
+    }}
 }}
 
 # Override Invoke-Expression to capture commands
 $originalInvokeExpression = Get-Command Invoke-Expression
 function Invoke-Expression {{
     param($command)
-    
+
     try {{
         & $originalInvokeExpression $command
         _fukura_record_command $command $LASTEXITCODE (Get-Location).Path

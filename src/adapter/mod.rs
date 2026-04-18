@@ -92,6 +92,26 @@ pub trait Adapter: Send + Sync {
     /// `matches` returning `true`, the adapter cannot extract useful
     /// structure (e.g. ambiguous output).
     fn parse(&self, ctx: &InvocationContext) -> Option<ErrorOntology>;
+
+    /// Optional: given a context that only knows the command (no exit
+    /// code, no stderr yet), return the fingerprint the adapter expects
+    /// a *likely* failure would produce. Used by preflight to tighten
+    /// matches before a command actually runs.
+    ///
+    /// The default implementation attempts `parse` against a synthesised
+    /// failing context (exit_code=1, empty stderr) and returns the
+    /// resulting fingerprint. Adapters whose fingerprint formula needs
+    /// real stderr / exit_code to be meaningful should return `None`.
+    fn synthesise_pre_fingerprint(&self, ctx: &InvocationContext) -> Option<String> {
+        let mut synthetic = ctx.clone();
+        if synthetic.exit_code.is_none() {
+            synthetic.exit_code = Some(1);
+        }
+        if synthetic.stderr.is_none() {
+            synthetic.stderr = Some(String::new());
+        }
+        self.parse(&synthetic).map(|o| o.fingerprint)
+    }
 }
 
 /// Registry of adapters. Adapters are tried in priority order (descending)
@@ -132,6 +152,20 @@ impl AdapterRegistry {
 
     pub fn adapters(&self) -> &[Arc<dyn Adapter>] {
         &self.adapters
+    }
+
+    /// Synthesise a likely fingerprint from command context alone.
+    /// Returns the first `Some` from adapters in priority order. Useful
+    /// for preflight: predict the fingerprint *before* running the
+    /// command so matches against prior notes can be tighter than
+    /// keyword search.
+    pub fn synthesise_pre_fingerprint(&self, ctx: &InvocationContext) -> Option<String> {
+        for adapter in &self.adapters {
+            if let Some(fp) = adapter.synthesise_pre_fingerprint(ctx) {
+                return Some(fp);
+            }
+        }
+        None
     }
 
     /// Classify a context into an ontology, or `None` when no adapter

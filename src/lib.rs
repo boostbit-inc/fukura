@@ -33,6 +33,7 @@ pub mod infrastructure {
     pub mod directory_monitor;
     pub mod file_watcher;
     pub mod hooks;
+    pub mod hub_state;
     pub mod index;
     pub mod notification;
     pub mod remote_search;
@@ -64,6 +65,7 @@ pub use infrastructure::config;
 pub use infrastructure::directory_monitor;
 pub use infrastructure::file_watcher;
 pub use infrastructure::hooks;
+pub use infrastructure::hub_state;
 pub use infrastructure::index;
 pub use infrastructure::notification;
 pub use infrastructure::remote_search;
