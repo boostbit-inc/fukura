@@ -24,6 +24,7 @@ fn sample_note() -> Note {
             name: "Fukura Developer".into(),
             email: Some("dev@example.com".into()),
         },
+        ontology: None,
     }
 }
 

@@ -30,6 +30,7 @@ dist/
 !CONTRIBUTORS.md
 !docs/README.md
 !docs/security.md
+!docs/ekp-spec.md
 !docs/developer/*.md
 !docs/user-guide/*.md
 

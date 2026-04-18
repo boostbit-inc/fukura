@@ -39,6 +39,7 @@ fn create_benchmark_data(repo: &FukuraRepo, count: usize) -> Vec<String> {
                 name: "Benchmark Author".into(),
                 email: Some("benchmark@test.com".into()),
             },
+            ontology: None,
         };
 
         notes.push(note);
@@ -138,6 +139,7 @@ fn bench_store_note(c: &mut Criterion) {
                     name: "Benchmark Author".into(),
                     email: Some("benchmark@test.com".into()),
                 },
+                ontology: None,
             };
 
             let record = repo.store_note(note).expect("Failed to store note");

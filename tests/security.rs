@@ -40,6 +40,7 @@ fn create_malicious_note() -> Note {
             name: "<script>alert('xss')</script>".into(),
             email: Some("evil@hacker.com".into()),
         },
+        ontology: None,
     }
 }
 
@@ -123,6 +124,7 @@ fn test_sensitive_data_redaction() {
             name: "Security Tester".into(),
             email: Some("security@test.com".into()),
         },
+        ontology: None,
     };
 
     let record = repo.store_note(note).expect("Failed to store note");
@@ -179,6 +181,7 @@ fn test_large_input_handling() {
             name: "Large Content Tester".into(),
             email: Some("large@test.com".into()),
         },
+        ontology: None,
     };
 
     // Should handle large content gracefully
