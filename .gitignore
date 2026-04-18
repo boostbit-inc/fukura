@@ -32,6 +32,7 @@ dist/
 !docs/security.md
 !docs/ekp-spec.md
 !docs/fukurahub-api.md
+!docs/handoff.md
 !docs/developer/*.md
 !docs/user-guide/*.md
 
