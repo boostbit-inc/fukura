@@ -5,6 +5,7 @@ pub mod ui {
 
 pub mod application {
     pub mod activity_monitor;
+    pub mod claude_code;
     pub mod config_cmd;
     pub mod daemon;
     pub mod daemon_service;
@@ -43,6 +44,7 @@ pub mod shared {
 }
 
 pub use application::activity_monitor;
+pub use application::claude_code;
 pub use application::config_cmd;
 pub use application::daemon;
 pub use application::daemon_service;
