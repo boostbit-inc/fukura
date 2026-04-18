@@ -1135,6 +1135,7 @@ name = "fukura"
 version = "0.3.8"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "chrono",
  "ciborium",

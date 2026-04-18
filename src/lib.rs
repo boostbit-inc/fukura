@@ -25,6 +25,8 @@ pub mod domain {
 
 pub mod adapter;
 
+pub mod hub;
+
 pub mod infrastructure {
     pub mod attempt_storage;
     pub mod config;

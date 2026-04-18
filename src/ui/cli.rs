@@ -360,6 +360,13 @@ pub enum Commands {
     )]
     ClaudeCode(ClaudeCodeCommand),
 
+    /// Talk to a fukurahub server.
+    #[command(
+        name = "hub",
+        about = "Interact with a fukurahub server (ping / info / stats / sync-attempts)"
+    )]
+    Hub(HubCommand),
+
     /// Manage daemon (advanced options)
     #[command(
         name = "daemon",
@@ -881,6 +888,38 @@ pub struct ClaudeCodeStatusArgs {
 }
 
 #[derive(Debug, Args)]
+pub struct HubCommand {
+    #[arg(long, value_name = "URL")]
+    pub url: Option<String>,
+    #[arg(long, value_name = "TOKEN")]
+    pub token: Option<String>,
+    #[command(subcommand)]
+    pub command: HubSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum HubSubcommand {
+    /// Hit `GET /v1/health`.
+    #[command(name = "ping")]
+    Ping,
+    /// Hit `GET /v1/info`.
+    #[command(name = "info")]
+    Info,
+    /// Hit `GET /v1/attempts/stats` for one fingerprint or the top-N.
+    #[command(name = "stats")]
+    Stats(HubStatsArgs),
+    /// Ship every local attempt record to the hub in one batch.
+    #[command(name = "sync-attempts")]
+    SyncAttempts,
+}
+
+#[derive(Debug, Args)]
+pub struct HubStatsArgs {
+    #[arg(long)]
+    pub fingerprint: Option<String>,
+}
+
+#[derive(Debug, Args)]
 pub struct RemoteCommand {
     #[arg(long, value_name = "URL", help = "Set remote URL")]
     set: Option<String>,
@@ -997,6 +1036,7 @@ pub async fn run() -> Result<()> {
         Commands::Mcp(cmd) => crate::application::mcp::run(cmd.repo.clone()).await?,
         Commands::Attempt(cmd) => handle_attempt(cmd).await?,
         Commands::ClaudeCode(cmd) => handle_claude_code(cmd)?,
+        Commands::Hub(cmd) => handle_hub(cmd).await?,
     }
     Ok(())
 }
@@ -1101,6 +1141,83 @@ fn print_stats(fingerprint: &str, stats: &crate::domain::attempt::AttemptStats) 
         t = stats.total(),
         r = rate,
     );
+}
+
+async fn handle_hub(cmd: &HubCommand) -> Result<()> {
+    use crate::hub::{HttpHubClient, HttpHubConfig, HubClient};
+
+    let base_url = cmd
+        .url
+        .clone()
+        .or_else(|| std::env::var("FUKURAHUB_URL").ok())
+        .context("hub URL missing — pass --url or set FUKURAHUB_URL")?;
+    let token = cmd
+        .token
+        .clone()
+        .or_else(|| std::env::var("FUKURAHUB_TOKEN").ok());
+
+    let client = HttpHubClient::new(HttpHubConfig {
+        base_url,
+        token,
+        producer: Some("cli".into()),
+        ..Default::default()
+    })?;
+
+    match &cmd.command {
+        HubSubcommand::Ping => {
+            let h = client.health().await?;
+            println!(
+                "ok  hub_id={}  version={}",
+                h.hub_id.as_deref().unwrap_or("<unnamed>"),
+                h.version.as_deref().unwrap_or("<unknown>"),
+            );
+        }
+        HubSubcommand::Info => {
+            let info = client.info().await?;
+            println!("{}", serde_json::to_string_pretty(&info)?);
+        }
+        HubSubcommand::Stats(args) => {
+            let page = client.stats(args.fingerprint.as_deref()).await?;
+            if page.by_fingerprint.is_empty() {
+                println!("no stats recorded on hub");
+                return Ok(());
+            }
+            for entry in &page.by_fingerprint {
+                let rate = entry
+                    .stats
+                    .success_rate()
+                    .map(|r| format!("{:.1}%", r * 100.0))
+                    .unwrap_or_else(|| "—".into());
+                println!(
+                    "{}  success={} failure={} abandoned={} total={} rate={}",
+                    short_fp(&entry.fingerprint),
+                    entry.stats.success,
+                    entry.stats.failure,
+                    entry.stats.abandoned,
+                    entry.stats.total(),
+                    rate,
+                );
+            }
+        }
+        HubSubcommand::SyncAttempts => {
+            let repo = FukuraRepo::discover(None)?;
+            let store = crate::attempt_storage::AttemptStore::open(repo.dot_dir())?;
+            let all = store.load_all()?;
+            if all.is_empty() {
+                println!("no local attempts to sync");
+                return Ok(());
+            }
+            let receipt = client.upload_attempts(&all).await?;
+            println!(
+                "synced {} attempts ({} rejected)",
+                receipt.accepted, receipt.rejected
+            );
+            for err in &receipt.errors {
+                println!("  index {} → {}: {}", err.index, err.code, err.message);
+            }
+        }
+    }
+    Ok(())
 }
 
 fn handle_claude_code(cmd: &ClaudeCodeCommand) -> Result<()> {
