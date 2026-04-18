@@ -298,6 +298,38 @@ fn is_external_mode() -> bool {
     std::env::var("HUB_BASE_URL").is_ok()
 }
 
+/// Skip the current test in external mode unless the hub has declared
+/// the given P3 slice landed via `HUB_SLICE_<N>=1`. In mock mode the
+/// in-process axum implements every slice, so the markers are ignored.
+///
+/// Returns `true` if the test should early-return. Callers write:
+///
+/// ```ignore
+/// if external_requires_slice(3, "what this test needs") {
+///     return;
+/// }
+/// ```
+///
+/// The convention lets fukura-hub's CI start with `HUB_SLICE_1=1`
+/// today and add `HUB_SLICE_2=1`, `HUB_SLICE_3=1`, ... as each slice
+/// merges. Tests that depend on an unlanded slice skip with a clear
+/// reason; tests that DO depend on a landed slice must pass, so a
+/// regression breaks CI (merge gate).
+fn external_requires_slice(slice: u8, what: &str) -> bool {
+    if !is_external_mode() {
+        return false;
+    }
+    let marker = format!("HUB_SLICE_{slice}");
+    if std::env::var(&marker).is_ok() {
+        return false;
+    }
+    eprintln!(
+        "SKIP (external mode): {what} — requires P3 Slice {slice}. \
+         Set {marker}=1 in CI once that slice lands on hub's main."
+    );
+    true
+}
+
 fn sample_note() -> NoteEnvelope {
     let now = chrono::Utc::now();
     NoteEnvelope {
@@ -329,6 +361,13 @@ fn sample_note() -> NoteEnvelope {
 #[tokio::test]
 async fn client_round_trips_against_mock_server() {
     let target = TestTarget::start().await;
+    // The mega roundtrip exercises /v1/health, /v1/info, /v1/notes,
+    // /v1/attempts*. Slices 1-3 all need to have landed before it can
+    // pass against a real hub, so gate it on the latest slice it
+    // needs.
+    if external_requires_slice(3, "/v1/health, /v1/info, /v1/notes round-trip") {
+        return;
+    }
     let base = target.base_url().to_string();
     let client = HttpHubClient::new(HttpHubConfig {
         base_url: base.clone(),
@@ -493,6 +532,9 @@ async fn upload_retries_on_429_and_reuses_idempotency_key() {
 #[tokio::test]
 async fn get_note_returns_none_on_404() {
     let target = TestTarget::start().await;
+    if external_requires_slice(3, "GET /v1/notes/{id}") {
+        return;
+    }
     let client = HttpHubClient::new(HttpHubConfig {
         base_url: target.base_url().to_string(),
         token: Some(target.token()),
@@ -502,4 +544,57 @@ async fn get_note_returns_none_on_404() {
 
     let fetched = client.get_note("sha256:missing").await.unwrap();
     assert!(fetched.is_none());
+}
+
+/// Slice-1-focused external-mode smoke: exercise only the two
+/// endpoints that Slice 1 added, so fukura-hub's CI starts seeing a
+/// real contract-test pass/fail signal the moment the slice lands.
+/// In mock mode this is redundant with the mega round-trip above, so
+/// skip to keep local test time down.
+#[tokio::test]
+async fn attempts_upload_and_stats_against_external_hub() {
+    let target = TestTarget::start().await;
+    if target.mock_state().is_some() {
+        // Covered by client_round_trips_against_mock_server.
+        return;
+    }
+    if external_requires_slice(1, "POST /v1/attempts + GET /v1/attempts/stats") {
+        return;
+    }
+
+    let client = HttpHubClient::new(HttpHubConfig {
+        base_url: target.base_url().to_string(),
+        token: Some(target.token()),
+        ..Default::default()
+    })
+    .unwrap();
+
+    // Upload a tiny batch with a deterministic attempt_id so we can
+    // re-post and assert idempotency.
+    let fingerprint = "blake3:contract-test-slice1";
+    let deterministic_id = "00000000-0000-4000-8000-000000001111";
+    let mut once = SolutionAttempt::new(
+        fingerprint,
+        fukura::domain::attempt::AttemptOutcome::Success,
+    );
+    once.attempt_id = deterministic_id.to_string();
+
+    let first = client.upload_attempts(&[once.clone()]).await.unwrap();
+    assert_eq!(first.accepted, 1, "first upload should accept");
+    let second = client.upload_attempts(&[once]).await.unwrap();
+    assert_eq!(
+        second.accepted, 1,
+        "reposting the same attempt_id MUST still count as accepted (spec §6)"
+    );
+
+    let stats = client.stats(Some(fingerprint)).await.unwrap();
+    let found = stats
+        .by_fingerprint
+        .iter()
+        .find(|s| s.fingerprint == fingerprint)
+        .expect("stats should include the fingerprint we just uploaded");
+    assert!(
+        found.stats.success >= 1,
+        "stats should reflect at least our one success"
+    );
 }

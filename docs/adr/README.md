@@ -15,4 +15,4 @@ done by adding a new ADR and flipping the old one's status to
 | [0004](./0004-org-scoping-via-jwt-claim.md) | Org scoping via Bearer token claim | Accepted |
 | [0005](./0005-private-tier-existing-rows-keep.md) | Existing `privacy=private` rows are kept on the server | Accepted |
 | [0006](./0006-m6-zero-downtime-three-stage.md) | Rename the `team` privacy enum to `org` via a 3-stage deploy | Accepted |
-| [0007](./0007-p3-slice-1-attempts-table.md) | P3 Slice 1 — add the `attempts` table | Proposed |
+| [0007](./0007-p3-slice-1-attempts-table.md) | P3 Slice 1 — add the `attempts` table | Accepted |

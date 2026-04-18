@@ -1,7 +1,7 @@
 # ADR 0007: P3 Slice 1 — add the `attempts` table
 
 Date: 2026-04-18
-Status: Proposed
+Status: Accepted (landed in fukura-hub `ab3c97b`)
 
 ## Context
 

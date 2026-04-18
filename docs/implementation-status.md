@@ -27,7 +27,7 @@ Versions referenced: `fukura` (CLI crate) as of `v0.3.8`; `fukura-hub`
 | §6 Fingerprinting (BLAKE3 prefix, normalised signature, no variable values) | ✅ v0.3 | 🚧 v0.4 (P3 Slice 2 — indexed column) | 🚧 v1.1 |
 | §7 Redaction (producer-side MUST) | ✅ v0.3 (`src/domain/redaction.rs`) | N/A (server never sees raw) | 🚧 v1.1 |
 | §8 Entity vocabulary (starter set) | ✅ v0.3 | N/A | 🚧 v1.1 |
-| §9 Effectiveness attempts (informative — concrete schema in hub API §5.2) | ✅ v0.3 (`AttemptStore`, `SolutionAttempt`) | 🚧 v0.4 (P3 Slice 1 — attempts table) | 🚧 v1.1 (/docs/effectiveness page) |
+| §9 Effectiveness attempts (informative — concrete schema in hub API §5.2) | ✅ v0.3 (`AttemptStore`, `SolutionAttempt`) | ✅ v0.1 (P3 Slice 1 landed) | 🚧 v1.1 (/docs/effectiveness page) |
 | §10 Version negotiation | ✅ v0.3 | 🚧 v0.4 (forward-compat round-trip for unknown ontology fields) | 🚧 v1.1 |
 | §11 Conformance | ✅ v0.3 (producer) | 🚧 v0.4 (consumer) | N/A |
 
@@ -42,12 +42,12 @@ Versions referenced: `fukura` (CLI crate) as of `v0.3.8`; `fukura-hub`
 | §5.1 `GET /v1/notes/{object_id}` | ✅ v0.3 | 🚧 v0.4 (P3 Slice 3 — current route is `/api/notes/:uuid`) | 🚧 v1.1 |
 | §5.1 `GET /v1/notes/{object_id}` → **410 Gone** on deleted (alignment D4a) | ✅ v0.3 (tolerates) | ❌ not scheduled — rides with Slice 3 | 🚧 v1.1 |
 | §5.1 `GET /v1/notes` search (q / fingerprint / category / tag / privacy / cursor / limit) | ✅ v0.3 | 🚧 v0.4 (P3 Slice 3 — current `/api/notes` is offset-paginated and has no fingerprint/category filters) | 🚧 v1.1 |
-| §5.2 `POST /v1/attempts` (batch, partial accept) | ✅ v0.3 | 🚧 v0.4 (P3 Slice 1 — attempts table) | 🚧 v1.1 (/docs/effectiveness) |
-| §5.2 `GET /v1/attempts/stats` | ✅ v0.3 | 🚧 v0.4 (P3 Slice 1) | 🚧 v1.1 |
+| §5.2 `POST /v1/attempts` (batch, partial accept) | ✅ v0.3 | ✅ v0.1 (P3 Slice 1 landed) | 🚧 v1.1 (/docs/effectiveness) |
+| §5.2 `GET /v1/attempts/stats` | ✅ v0.3 | ✅ v0.1 (P3 Slice 1 landed) | 🚧 v1.1 |
 | §5.3 `GET /v1/health` (unauth, `{status,version,hub_id}`) | ✅ v0.3 | 🚧 v0.4 (current route is `/health` and returns `{status,service,version}`) | 🚧 v1.1 |
 | §5.3 `GET /v1/info` (authed policy advertisement) | ✅ v0.3 (1h cache added in v0.4 Task 3) | 🚧 v0.4 (P3 Slice 3) | 🚧 v1.1 |
 | §6 Idempotency (repost body → 200 + existing `object_id`) | ✅ v0.4 (`Idempotency-Key` header on every POST) | 🚧 v0.4 (P3 Slice 3 — UPSERT on `object_id`) | N/A |
-| §6 Idempotency (attempt_id dedup) | ✅ v0.3 | 🚧 v0.4 (P3 Slice 1) | N/A |
+| §6 Idempotency (attempt_id dedup) | ✅ v0.3 | ✅ v0.1 (UNIQUE attempt_id + ON CONFLICT DO NOTHING) | N/A |
 | §7 Pagination (opaque cursors, no client parsing) | ✅ v0.3 | 🚧 v0.4 (currently offset) | 🚧 v1.1 |
 | §8 Rate limiting (429 + `Retry-After`, client honors + backoff) | ✅ v0.4 (Task 3) | 🚧 v0.4 (P3 Slice 3) | 🚧 v1.1 |
 | §9 Size limits (256 KiB / 500 / 8 MiB → 413) | ✅ v0.4 (Task 3) (client-side check) | 🚧 v0.4 (P3 Slice 3) | 🚧 v1.1 |
@@ -74,7 +74,7 @@ Versions referenced: `fukura` (CLI crate) as of `v0.3.8`; `fukura-hub`
 |---|---|---|
 | `tests/hub_http_client.rs` runs against in-process mock (default) | ✅ v0.3 | N/A |
 | Same test file runs against real hub via `HUB_BASE_URL` env | ✅ v0.4 (Task 1) | 🚧 v0.4 (Task 4) |
-| Contract test job in hub CI blocks merges on spec violations | N/A | 🚧 v0.4 (Task 4 — initial snapshot mode, then gate) |
+| Contract test job in hub CI blocks merges on spec violations | N/A | ✅ (gating; per-test skips via `HUB_SLICE_<N>` env vars as slices land) |
 
 ## Change policy
 
