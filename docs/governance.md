@@ -44,8 +44,9 @@ A change that touches two or more of {`fukura`, `fukura-hub`,
    starts.
 2. Each sibling PR links the others in its description
    (`Related: boostbit-inc/fukura#NNN`, etc.).
-3. Tags are cut together — see `CHANGELOG.md` for the coordinated
-   release convention.
+3. Each repo cuts its own release tag when *its* change is ready.
+   There is no shared version number and no forced release order;
+   see `CHANGELOG.md` for the cross-repo relationship.
 
 Contract tests (`fukura/tests/hub_http_client.rs`, run against a real
 hub via `HUB_BASE_URL` from `fukura-hub`'s CI) are the final arbiter

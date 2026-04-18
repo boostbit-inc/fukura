@@ -56,9 +56,9 @@ and `fukura-site/CLAUDE.md`.
 ## Coordination
 
 - Decisions affecting multiple repos → ADR in `docs/adr/NNNN-*.md`.
-- Coordinated release tags: the three repos carry the same version
-  number when their implementations snap together. See `CHANGELOG.md`
-  for the convention.
+- Each repo is tagged independently. There is no shared version
+  number; cross-repo coordination is tracked in
+  `docs/implementation-status.md`, not in tags.
 - Contract tests (`tests/hub_http_client.rs`, run against a real hub
   via `HUB_BASE_URL`) are the final arbiter of spec ↔ server
   alignment. If they fail in `fukura-hub`'s CI, that is the source of
