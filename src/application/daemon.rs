@@ -380,7 +380,7 @@ impl FukuraDaemon {
                                                     )
                                                 };
 
-                                                let note = Note {
+                                                let mut note = Note {
                                                     title: format!("Error: {}", command),
                                                     body: body_text,
                                                     tags: vec![
@@ -410,6 +410,21 @@ impl FukuraDaemon {
                                                     },
                                                     ontology: None,
                                                 };
+
+                                                let invocation_ctx =
+                                                    crate::adapter::InvocationContext {
+                                                        command: command.to_string(),
+                                                        exit_code: Some(exit_code),
+                                                        stderr: Some(error_message.clone()),
+                                                        working_directory: Some(
+                                                            working_dir.to_string(),
+                                                        ),
+                                                        ..Default::default()
+                                                    };
+                                                crate::adapter::enrich::enrich_note(
+                                                    &mut note,
+                                                    &invocation_ctx,
+                                                );
 
                                                 if let Ok(record) = repo_clone.store_note(note) {
                                                     tracing::info!(
@@ -599,7 +614,7 @@ impl FukuraDaemon {
                                             ),
                                         );
 
-                                        let note = Note {
+                                        let mut note = Note {
                                             title: format!("Error: {}", command),
                                             body: format!(
                                                 "## Command Failed\n\n```\n{}\n```\n\n**Exit Code**: {}\n\n**Error**: {}\n\n**Working Directory**: {}\n\n**Time**: {}",
@@ -625,6 +640,18 @@ impl FukuraDaemon {
                                             },
                                             ontology: None,
                                         };
+
+                                        let invocation_ctx = crate::adapter::InvocationContext {
+                                            command: command.to_string(),
+                                            exit_code: Some(exit_code),
+                                            stderr: Some(error_message.clone()),
+                                            working_directory: Some(working_dir.to_string()),
+                                            ..Default::default()
+                                        };
+                                        crate::adapter::enrich::enrich_note(
+                                            &mut note,
+                                            &invocation_ctx,
+                                        );
 
                                         if let Ok(record) = repo_clone.store_note(note) {
                                             tracing::info!(
@@ -1282,28 +1309,12 @@ impl FukuraDaemon {
             body.push_str(&format!("\n**Git Branch**: `{}`\n", branch));
         }
 
-        // Extract tags
-        let mut tags = vec!["auto-solved".to_string(), "resolution".to_string()];
-        let cmd_lower = error.command.to_lowercase();
-        if cmd_lower.contains("cargo") || cmd_lower.contains("rust") {
-            tags.push("rust".to_string());
-        }
-        if cmd_lower.contains("npm") || cmd_lower.contains("node") {
-            tags.push("nodejs".to_string());
-        }
-        if cmd_lower.contains("docker") {
-            tags.push("docker".to_string());
-        }
-        if cmd_lower.contains("git") {
-            tags.push("git".to_string());
-        }
-        if cmd_lower.contains("python") || cmd_lower.contains("pip") {
-            tags.push("python".to_string());
-        }
-        tags.sort();
-        tags.dedup();
+        // Tags. Adapter-derived tags (rust/cargo/git/kubernetes/...) are
+        // appended by `enrich_note` below; we only seed the workflow tags
+        // that are not adapter-specific.
+        let tags = vec!["auto-solved".to_string(), "resolution".to_string()];
 
-        let note = Note {
+        let mut note = Note {
             title: title.clone(),
             body,
             tags,
@@ -1326,6 +1337,16 @@ impl FukuraDaemon {
             },
             ontology: None,
         };
+
+        let stderr = session.errors.last().and_then(|e| e.stderr_output.clone());
+        let invocation_ctx = crate::adapter::InvocationContext {
+            command: error.command.clone(),
+            exit_code: error.exit_code,
+            stderr,
+            working_directory: Some(session.context.working_directory.clone()),
+            ..Default::default()
+        };
+        crate::adapter::enrich::enrich_note(&mut note, &invocation_ctx);
 
         match repo.store_note(note) {
             Ok(record) => {
@@ -1447,7 +1468,7 @@ impl FukuraDaemon {
             "This note was automatically generated from a development session with errors.\n",
         );
 
-        Note {
+        let mut note = Note {
             title: format!("Auto-generated: Session {}", session.id),
             body,
             tags: vec!["auto-generated".into(), "session".into(), "error".into()],
@@ -1462,7 +1483,28 @@ impl FukuraDaemon {
                 email: None,
             },
             ontology: None,
+        };
+
+        // Classify the most representative failing command in the session
+        // (first failure wins). Adapter enrichment populates note.ontology
+        // and merges adapter-derived tags / ekp.* meta keys.
+        if let Some(failing) = session.commands.iter().find(|cmd| cmd.exit_code != Some(0)) {
+            let stderr = session
+                .errors
+                .iter()
+                .find(|e| !e.message.is_empty())
+                .map(|e| e.message.clone());
+            let invocation_ctx = crate::adapter::InvocationContext {
+                command: failing.command.clone(),
+                exit_code: failing.exit_code,
+                stderr,
+                working_directory: Some(session.context.working_directory.clone()),
+                ..Default::default()
+            };
+            crate::adapter::enrich::enrich_note(&mut note, &invocation_ctx);
         }
+
+        note
     }
 }
 
