@@ -19,6 +19,11 @@ pub struct FukuraDaemon {
     pub repo_path: std::path::PathBuf,
     config: DaemonConfig,
     notification_manager: Option<Arc<NotificationManager>>,
+    /// In-process effectiveness tracker. Populated lazily on `new` and
+    /// owned by the daemon for the lifetime of the process — shell hooks
+    /// send command events through here so the next success / failure
+    /// can be attributed back to a prior fingerprint.
+    effectiveness: crate::application::effectiveness::EffectivenessTracker,
 }
 
 #[derive(Debug, Clone)]
@@ -108,6 +113,12 @@ impl FukuraDaemon {
         let repo = Arc::new(FukuraRepo::discover(Some(repo_path))?);
         let notification_manager = NotificationManager::new(repo_path).ok().map(Arc::new);
 
+        let attempt_store = Arc::new(crate::infrastructure::attempt_storage::AttemptStore::open(
+            repo.dot_dir(),
+        )?);
+        let effectiveness =
+            crate::application::effectiveness::EffectivenessTracker::new(attempt_store);
+
         Ok(Self {
             repo,
             sessions: Arc::new(RwLock::new(HashMap::new())),
@@ -115,6 +126,7 @@ impl FukuraDaemon {
             repo_path: repo_path.to_path_buf(),
             config,
             notification_manager,
+            effectiveness,
         })
     }
 
@@ -186,13 +198,14 @@ impl FukuraDaemon {
         let repo = self.repo.clone();
         let repo_path = self.repo_path.clone();
         let notif_mgr = self.notification_manager.clone();
+        let effectiveness_cleanup = self.effectiveness.clone();
 
         // Session cleanup task
         tokio::spawn(async move {
             let mut interval = time::interval(Duration::from_secs(60));
             loop {
                 interval.tick().await;
-                Self::cleanup_sessions(&sessions1, &config1).await;
+                Self::cleanup_sessions(&sessions1, &config1, &effectiveness_cleanup).await;
             }
         });
 
@@ -792,6 +805,27 @@ impl FukuraDaemon {
             });
             session.last_activity = SystemTime::now();
 
+            // Feed the effectiveness tracker. We thread stderr from the
+            // most recent error entry (if any) so that the adapter
+            // registry can classify beyond `command_head` alone. The
+            // tracker internally handles the pending-fingerprint state
+            // machine and writes attempt records on resolution.
+            let last_stderr = session
+                .errors
+                .last()
+                .and_then(|e| e.stderr_output.clone())
+                .or_else(|| session.errors.last().map(|e| e.message.clone()));
+            let ctx = crate::adapter::InvocationContext {
+                command: command.to_string(),
+                exit_code,
+                stderr: last_stderr,
+                working_directory: Some(working_dir.to_string()),
+                ..Default::default()
+            };
+            if let Err(e) = self.effectiveness.observe(session_id, &ctx) {
+                tracing::warn!("effectiveness.observe failed: {e:#}");
+            }
+
             // INSTANT RESOLUTION DETECTION
             if let Some(code) = exit_code {
                 if code != 0 {
@@ -943,6 +977,7 @@ impl FukuraDaemon {
     async fn cleanup_sessions(
         sessions: &Arc<RwLock<HashMap<String, ActiveSession>>>,
         config: &DaemonConfig,
+        effectiveness: &crate::application::effectiveness::EffectivenessTracker,
     ) {
         let mut sessions_guard = sessions.write().await;
         let now = SystemTime::now();
@@ -963,9 +998,14 @@ impl FukuraDaemon {
             }
         }
 
-        // Remove timed out sessions
+        // Remove timed out sessions. Any still-pending fingerprint for
+        // a timed-out session is promoted to an `Abandoned` attempt so
+        // we stop losing data when a developer walks away from a shell.
         for id in to_remove {
             sessions_guard.remove(&id);
+            if let Err(e) = effectiveness.abandon(&id) {
+                tracing::warn!("effectiveness.abandon failed for {id}: {e:#}");
+            }
         }
 
         // Limit number of sessions efficiently
@@ -974,6 +1014,7 @@ impl FukuraDaemon {
             let to_remove_count = session_activities.len() - config.max_sessions;
             for (id, _) in session_activities.iter().take(to_remove_count) {
                 sessions_guard.remove(id);
+                let _ = effectiveness.abandon(id);
             }
         }
     }

@@ -343,6 +343,16 @@ pub enum Commands {
     )]
     Mcp(McpCommand),
 
+    /// Record / query solution-attempt outcomes.
+    /// Shell hooks pipe a stream of `attempt observe` calls through this
+    /// subcommand; each failing command stashes a pending fingerprint
+    /// per session, and the next successful command closes the loop.
+    #[command(
+        name = "attempt",
+        about = "Record or query solution attempt outcomes (effectiveness loop)"
+    )]
+    Attempt(AttemptCommand),
+
     /// Manage daemon (advanced options)
     #[command(
         name = "daemon",
@@ -748,6 +758,77 @@ pub struct McpCommand {
 }
 
 #[derive(Debug, Args)]
+pub struct AttemptCommand {
+    #[command(subcommand)]
+    pub command: AttemptSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AttemptSubcommand {
+    /// Feed one invocation event (a single command's exit code + output)
+    /// through the effectiveness tracker. Failing commands stash a
+    /// pending fingerprint keyed by `--session`; the next successful
+    /// command closes the loop and writes a `Success` attempt. This is
+    /// the primitive that shell hooks call after every prompt.
+    #[command(name = "observe")]
+    Observe(ObserveArgs),
+
+    /// Force-abandon any pending fingerprint for the given session (e.g.
+    /// on shell exit). Writes an `Abandoned` attempt when there was
+    /// something pending.
+    #[command(name = "abandon")]
+    Abandon(AbandonArgs),
+
+    /// Print the aggregate success / failure / abandoned counts, either
+    /// globally or for a specific fingerprint.
+    #[command(name = "stats")]
+    Stats(StatsArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ObserveArgs {
+    /// Opaque session identifier. Shell hooks typically derive this from
+    /// the shell PID or the working directory hash.
+    #[arg(long)]
+    pub session: String,
+
+    /// Full command line that just ran.
+    #[arg(long)]
+    pub command: String,
+
+    /// Exit status of the command. Anything non-zero is treated as a
+    /// failure.
+    #[arg(long = "exit-code")]
+    pub exit_code: i32,
+
+    /// Captured stderr (optional; improves classification accuracy).
+    #[arg(long)]
+    pub stderr: Option<String>,
+
+    /// Captured stdout (optional).
+    #[arg(long)]
+    pub stdout: Option<String>,
+
+    /// Declare this event came from an autonomous agent rather than a
+    /// human terminal. Used to tag the resulting attempt.
+    #[arg(long = "agent-kind")]
+    pub agent_kind: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct AbandonArgs {
+    #[arg(long)]
+    pub session: String,
+}
+
+#[derive(Debug, Args)]
+pub struct StatsArgs {
+    /// Limit the aggregation to a single fingerprint.
+    #[arg(long)]
+    pub fingerprint: Option<String>,
+}
+
+#[derive(Debug, Args)]
 pub struct RemoteCommand {
     #[arg(long, value_name = "URL", help = "Set remote URL")]
     set: Option<String>,
@@ -862,8 +943,111 @@ pub async fn run() -> Result<()> {
         Commands::Show(cmd) => handle_show_activity(&cli, cmd).await?,
         Commands::Track(cmd) => handle_track(&cli, cmd).await?,
         Commands::Mcp(cmd) => crate::application::mcp::run(cmd.repo.clone()).await?,
+        Commands::Attempt(cmd) => handle_attempt(cmd).await?,
     }
     Ok(())
+}
+
+async fn handle_attempt(cmd: &AttemptCommand) -> Result<()> {
+    use std::sync::Arc;
+
+    use crate::adapter::InvocationContext;
+    use crate::application::effectiveness::EffectivenessTracker;
+    use crate::attempt_storage::AttemptStore;
+
+    let repo = FukuraRepo::discover(None)?;
+    let dot_dir = repo.dot_dir().to_path_buf();
+    let store = Arc::new(AttemptStore::open(&dot_dir)?);
+    let tracker = EffectivenessTracker::new(store.clone());
+    tracker.load_pending(&dot_dir)?;
+
+    match &cmd.command {
+        AttemptSubcommand::Observe(args) => {
+            let ctx = InvocationContext {
+                command: args.command.clone(),
+                exit_code: Some(args.exit_code),
+                stdout: args.stdout.clone(),
+                stderr: args.stderr.clone(),
+                working_directory: Some(
+                    std::env::current_dir()
+                        .ok()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_default(),
+                ),
+                duration_ms: None,
+                shell: None,
+                agent_kind: args.agent_kind.clone(),
+            };
+            let fingerprint = tracker.observe(&args.session, &ctx)?;
+            tracker.save_pending(&dot_dir)?;
+            match (fingerprint, args.exit_code) {
+                (Some(fp), code) if code != 0 => {
+                    println!("pending {} (session {})", short_fp(&fp), args.session);
+                }
+                (Some(fp), _) => {
+                    println!(
+                        "✓ success recorded for {} (session {})",
+                        short_fp(&fp),
+                        args.session
+                    );
+                }
+                (None, _) => {}
+            }
+        }
+        AttemptSubcommand::Abandon(args) => {
+            let fp = tracker.abandon(&args.session)?;
+            tracker.save_pending(&dot_dir)?;
+            match fp {
+                Some(fp) => println!("abandoned {} (session {})", short_fp(&fp), args.session),
+                None => println!("nothing pending for session {}", args.session),
+            }
+        }
+        AttemptSubcommand::Stats(args) => match &args.fingerprint {
+            Some(fp) => {
+                let s = store.stats_for(fp)?;
+                print_stats(fp, &s);
+            }
+            None => {
+                let by_fp = store.stats_by_fingerprint()?;
+                if by_fp.is_empty() {
+                    println!("no attempts recorded yet");
+                    return Ok(());
+                }
+                let mut sorted: Vec<_> = by_fp.into_iter().collect();
+                sorted.sort_by(|a, b| b.1.total().cmp(&a.1.total()));
+                for (fp, s) in sorted {
+                    print_stats(&fp, &s);
+                }
+            }
+        },
+    }
+    Ok(())
+}
+
+fn short_fp(fp: &str) -> String {
+    // "sha256:7f9c1234..." → "sha256:7f9c1234" (first 16 hex chars)
+    if let Some((algo, hex)) = fp.split_once(':') {
+        let short: String = hex.chars().take(16).collect();
+        format!("{algo}:{short}")
+    } else {
+        fp.chars().take(24).collect()
+    }
+}
+
+fn print_stats(fingerprint: &str, stats: &crate::domain::attempt::AttemptStats) {
+    let rate = stats
+        .success_rate()
+        .map(|r| format!("{:.1}%", r * 100.0))
+        .unwrap_or_else(|| "—".into());
+    println!(
+        "{fp}  success={s} failure={f} abandoned={a} total={t} rate={r}",
+        fp = short_fp(fingerprint),
+        s = stats.success,
+        f = stats.failure,
+        a = stats.abandoned,
+        t = stats.total(),
+        r = rate,
+    );
 }
 
 fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
