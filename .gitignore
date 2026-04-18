@@ -34,11 +34,9 @@ dist/
 !docs/fukurahub-api.md
 !docs/developer/*.md
 !docs/user-guide/*.md
-
-# Internal-only documents — kept in the private fukura-hub repo, never published here
-docs/handoff.md
-docs/next-session-prompt.md
-docs/fukurahub-alignment.md
+!docs/adr/*.md
+!docs/governance.md
+!docs/implementation-status.md
 
 # Test/demo files
 test_time_recording.rs
