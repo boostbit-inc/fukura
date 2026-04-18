@@ -97,6 +97,13 @@ impl FukuraRepo {
         self.dot_dir.join("packs")
     }
 
+    /// Directory used by the effectiveness-loop store. The `AttemptStore`
+    /// is constructed lazily by callers that need it — the `.fukura/`
+    /// directory is guaranteed to exist, so opening is infallible.
+    pub fn dot_dir(&self) -> &std::path::Path {
+        &self.dot_dir
+    }
+
     pub fn root(&self) -> &Path {
         &self.root
     }

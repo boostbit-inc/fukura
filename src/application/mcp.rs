@@ -22,7 +22,9 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::Mutex;
 
 use crate::adapter::{enrich, InvocationContext};
+use crate::domain::attempt::{AttemptOutcome, SolutionAttempt};
 use crate::index::SearchSort;
+use crate::infrastructure::attempt_storage::AttemptStore;
 use crate::models::{Author, Note, Privacy};
 use crate::repo::FukuraRepo;
 
@@ -181,6 +183,7 @@ impl Server {
             "fukura_search" => self.tool_search(args)?,
             "fukura_record" => self.tool_record(args)?,
             "fukura_preflight" => self.tool_preflight(args)?,
+            "fukura_record_attempt" => self.tool_record_attempt(args)?,
             other => anyhow::bail!("unknown tool: {other}"),
         };
 
@@ -260,14 +263,38 @@ impl Server {
             .search(head, 5, SearchSort::Relevance)
             .unwrap_or_default();
 
+        let store = AttemptStore::open(repo.dot_dir()).ok();
+        let stats_by_fp = store
+            .as_ref()
+            .and_then(|s| s.stats_by_fingerprint().ok())
+            .unwrap_or_default();
+
         let warnings: Vec<Value> = hits
             .into_iter()
             .map(|h| {
+                // Resolve fingerprint by loading the note; SearchHit does
+                // not carry structured ontology data yet. Preflight
+                // queries are rare and bounded (<= 5 hits), so the extra
+                // load is acceptable in exchange for linking effectiveness
+                // stats per result.
+                let fp = repo
+                    .load_note(&h.object_id)
+                    .ok()
+                    .and_then(|r| r.note.ontology.map(|o| o.fingerprint));
+                let stats = fp.as_deref().and_then(|f| stats_by_fp.get(f));
                 json!({
                     "note_id": h.object_id,
                     "title": h.title,
                     "tags": h.tags,
                     "snippet": h.summary,
+                    "fingerprint": fp,
+                    "effectiveness": stats.map(|s| json!({
+                        "success": s.success,
+                        "failure": s.failure,
+                        "abandoned": s.abandoned,
+                        "total": s.total(),
+                        "success_rate": s.success_rate(),
+                    })),
                 })
             })
             .collect();
@@ -275,6 +302,32 @@ impl Server {
         Ok(serde_json::to_string_pretty(&json!({
             "command": req.command,
             "warnings": warnings,
+        }))?)
+    }
+
+    fn tool_record_attempt(&self, args: Value) -> Result<String> {
+        let req: RecordAttemptRequest =
+            serde_json::from_value(args).context("record_attempt args")?;
+        let repo = self.require_repo()?;
+        let store = AttemptStore::open(repo.dot_dir())?;
+
+        let mut attempt = SolutionAttempt::new(&req.fingerprint, req.outcome);
+        attempt.suggested_note_id = req.suggested_note_id;
+        attempt.next_command = req.next_command;
+        attempt.agent_kind = req.agent_kind;
+        store.record(&attempt)?;
+
+        let stats = store.stats_for(&req.fingerprint)?;
+        Ok(serde_json::to_string_pretty(&json!({
+            "attempt_id": attempt.attempt_id,
+            "fingerprint": attempt.fingerprint,
+            "stats": {
+                "success": stats.success,
+                "failure": stats.failure,
+                "abandoned": stats.abandoned,
+                "total": stats.total(),
+                "success_rate": stats.success_rate(),
+            }
         }))?)
     }
 
@@ -348,13 +401,28 @@ fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "fukura_preflight",
-            "description": "Look up prior notes related to the given command before it is run. Use this to warn an agent (or a human) that the command has known failure modes.",
+            "description": "Look up prior notes related to the given command before it is run. Each returned warning carries an `effectiveness` object with measured success / failure / abandoned counts, so agents can prefer solutions that historically worked.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "command": { "type": "string" }
                 },
                 "required": ["command"]
+            }
+        }),
+        json!({
+            "name": "fukura_record_attempt",
+            "description": "Record the outcome of trying a solution against an EKP fingerprint. Agents (and shell hooks) call this after running a follow-up command so fukura can measure which solutions actually work. Outcomes: success (next command succeeded), failure (next command also failed), abandoned (no resolution reached).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "fingerprint": { "type": "string", "description": "EKP fingerprint of the error being attempted against" },
+                    "outcome": { "type": "string", "enum": ["success", "failure", "abandoned"] },
+                    "suggested_note_id": { "type": "string" },
+                    "next_command": { "type": "string" },
+                    "agent_kind": { "type": "string" }
+                },
+                "required": ["fingerprint", "outcome"]
             }
         }),
     ]
@@ -440,6 +508,18 @@ struct RecordRequest {
 #[derive(Debug, Deserialize)]
 struct PreflightRequest {
     command: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RecordAttemptRequest {
+    fingerprint: String,
+    outcome: AttemptOutcome,
+    #[serde(default)]
+    suggested_note_id: Option<String>,
+    #[serde(default)]
+    next_command: Option<String>,
+    #[serde(default)]
+    agent_kind: Option<String>,
 }
 
 fn first_token(s: &str) -> &str {
