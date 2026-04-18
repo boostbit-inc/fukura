@@ -1,11 +1,22 @@
-//! Mock-server integration test for the fukurahub HTTP client.
+//! Contract test harness for the fukurahub HTTP client.
 //!
-//! Stands up an in-process axum server that speaks the v1 API surface
-//! defined in `docs/fukurahub-api.md`, then drives it with the real
-//! `HttpHubClient`. This confirms the client produces the exact wire
-//! shape the spec requires — and, equally importantly, that the
-//! spec's request and response shapes round-trip cleanly through the
-//! reference types in `src/hub/types.rs`.
+//! **Two modes.**
+//!
+//! - *Mock mode (default).* Spins up an in-process axum server that speaks
+//!   the v1 API surface defined in `docs/fukurahub-api.md` and drives it
+//!   with the real `HttpHubClient`. Used by fukura's own CI.
+//! - *External mode.* When `HUB_BASE_URL` is set in the environment, the
+//!   tests drive a real hub process at that URL instead. This lets the
+//!   fukura-hub repo reuse this file as a contract test from its own CI
+//!   (see `docs/fukurahub-alignment.md` §4). Authentication uses the
+//!   `HUB_TOKEN` env var (falls back to `"test-token"`, which only the
+//!   mock accepts).
+//!
+//! Tests that manipulate the in-process mock's internal state (e.g.
+//! forcing the next upload to return 401) skip themselves in external
+//! mode — a real hub has no such hook. Every other test runs in both
+//! modes; spec violations on the real server surface as failing tests
+//! and get green'd one at a time by P3 slices.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -207,6 +218,60 @@ async fn spawn_server() -> (SocketAddr, FakeState, tokio::task::JoinHandle<()>) 
     (addr, state, handle)
 }
 
+/// Target the tests run against.
+///
+/// `Mock` is the default and uses the in-process axum server. `External`
+/// is selected by setting `HUB_BASE_URL` and drives a real hub instead.
+struct TestTarget {
+    base_url: String,
+    mock_state: Option<FakeState>,
+    _mock_handle: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl TestTarget {
+    /// Resolve the target for a test. If `HUB_BASE_URL` is set, point at
+    /// that URL; otherwise spawn an in-process mock. The mock handle is
+    /// held so the server lives for the lifetime of the test.
+    async fn start() -> Self {
+        if let Ok(url) = std::env::var("HUB_BASE_URL") {
+            Self {
+                base_url: url.trim_end_matches('/').to_string(),
+                mock_state: None,
+                _mock_handle: None,
+            }
+        } else {
+            let (addr, state, handle) = spawn_server().await;
+            Self {
+                base_url: format!("http://{addr}"),
+                mock_state: Some(state),
+                _mock_handle: Some(handle),
+            }
+        }
+    }
+
+    fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    /// Resolve the bearer token to send. Defaults to `"test-token"`
+    /// (which only the in-process mock accepts). External runners must
+    /// export `HUB_TOKEN` to a token the real hub will honour.
+    fn token(&self) -> String {
+        std::env::var("HUB_TOKEN").unwrap_or_else(|_| "test-token".to_string())
+    }
+
+    /// Borrow the mock state for tests that need to manipulate it.
+    /// Returns `None` in external mode; callers should skip or adjust.
+    fn mock_state(&self) -> Option<&FakeState> {
+        self.mock_state.as_ref()
+    }
+}
+
+/// True when the harness is driving a real external server.
+fn is_external_mode() -> bool {
+    std::env::var("HUB_BASE_URL").is_ok()
+}
+
 fn sample_note() -> NoteEnvelope {
     let now = chrono::Utc::now();
     NoteEnvelope {
@@ -237,11 +302,11 @@ fn sample_note() -> NoteEnvelope {
 
 #[tokio::test]
 async fn client_round_trips_against_mock_server() {
-    let (addr, _state, _h) = spawn_server().await;
-    let base = format!("http://{addr}");
+    let target = TestTarget::start().await;
+    let base = target.base_url().to_string();
     let client = HttpHubClient::new(HttpHubConfig {
         base_url: base.clone(),
-        token: Some("test-token".into()),
+        token: Some(target.token()),
         producer: Some("integration-test".into()),
         ..Default::default()
     })
@@ -250,7 +315,11 @@ async fn client_round_trips_against_mock_server() {
     // health (no auth)
     let h = client.health().await.unwrap();
     assert_eq!(h.status, "ok");
-    assert_eq!(h.hub_id.as_deref(), Some("test-hub"));
+    if !is_external_mode() {
+        // hub_id is a mock-specific literal; a real server will advertise
+        // whatever value it pins for itself.
+        assert_eq!(h.hub_id.as_deref(), Some("test-hub"));
+    }
 
     // info (auth required — fails without token)
     let no_auth = HttpHubClient::new(HttpHubConfig {
@@ -264,7 +333,16 @@ async fn client_round_trips_against_mock_server() {
     );
 
     let info = client.info().await.unwrap();
-    assert_eq!(info.max_note_bytes, Some(262_144));
+    if !is_external_mode() {
+        // The mock hard-codes this; real servers advertise their own
+        // limits, which the spec only requires to be present.
+        assert_eq!(info.max_note_bytes, Some(262_144));
+    } else {
+        assert!(
+            info.max_note_bytes.is_some(),
+            "real hub must advertise max_note_bytes"
+        );
+    }
 
     // upload + fetch
     let envelope = sample_note();
@@ -311,11 +389,20 @@ async fn client_round_trips_against_mock_server() {
 
 #[tokio::test]
 async fn client_surfaces_standard_error_body() {
-    let (addr, state, _h) = spawn_server().await;
+    let target = TestTarget::start().await;
+    let Some(state) = target.mock_state() else {
+        eprintln!(
+            "SKIP client_surfaces_standard_error_body in external mode: \
+             requires in-process mock to force a 401 on an authenticated \
+             upload. Real-hub auth failures are covered by the \
+             no-token assertion in the round-trip test."
+        );
+        return;
+    };
     *state.reject_next.lock().await = true;
 
     let client = HttpHubClient::new(HttpHubConfig {
-        base_url: format!("http://{addr}"),
+        base_url: target.base_url().to_string(),
         token: Some("t".into()),
         ..Default::default()
     })
@@ -332,10 +419,10 @@ async fn client_surfaces_standard_error_body() {
 
 #[tokio::test]
 async fn get_note_returns_none_on_404() {
-    let (addr, _state, _h) = spawn_server().await;
+    let target = TestTarget::start().await;
     let client = HttpHubClient::new(HttpHubConfig {
-        base_url: format!("http://{addr}"),
-        token: Some("t".into()),
+        base_url: target.base_url().to_string(),
+        token: Some(target.token()),
         ..Default::default()
     })
     .unwrap();
