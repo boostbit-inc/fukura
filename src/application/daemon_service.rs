@@ -321,6 +321,7 @@ impl AutoNoteDaemon {
             created_at: now,
             updated_at: now,
             author,
+            ontology: None,
         })
     }
 

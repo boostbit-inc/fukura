@@ -4,6 +4,8 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::domain::ontology::ErrorOntology;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, clap::ValueEnum, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Privacy {
@@ -37,6 +39,11 @@ pub struct Note {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub author: Author,
+    /// EKP v1 ontology describing the error captured by this note, when
+    /// the note was produced by an adapter. Optional for backward
+    /// compatibility with notes created before the adapter pipeline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ontology: Option<ErrorOntology>,
 }
 
 impl Note {

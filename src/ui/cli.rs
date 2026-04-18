@@ -949,6 +949,7 @@ async fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
             created_at: now,
             updated_at: now,
             author,
+            ontology: None,
         };
 
         let record = repo.store_note(note)?;
@@ -1028,6 +1029,7 @@ async fn handle_add(cli: &Cli, cmd: &AddCommand) -> Result<()> {
         created_at: now,
         updated_at: now,
         author,
+        ontology: None,
     };
 
     let record = repo.store_note(note)?;
@@ -2036,6 +2038,7 @@ async fn handle_import(cli: &Cli, cmd: &ImportCommand) -> Result<()> {
             created_at: now,
             updated_at: now,
             author,
+            ontology: None,
         };
 
         match repo.store_note(note) {
@@ -2265,6 +2268,7 @@ fn handle_done(cli: &Cli) -> Result<()> {
         created_at: chrono::DateTime::from_timestamp(start_timestamp, 0).unwrap_or(now),
         updated_at: now,
         author: resolve_author(None, None),
+        ontology: None,
     };
 
     let record = repo.store_note(note)?;

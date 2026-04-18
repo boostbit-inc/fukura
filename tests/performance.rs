@@ -24,6 +24,7 @@ fn create_test_note(title: &str, body: &str) -> Note {
             name: "Performance Tester".into(),
             email: Some("perf@test.com".into()),
         },
+        ontology: None,
     }
 }
 

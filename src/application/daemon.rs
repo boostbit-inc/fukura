@@ -408,6 +408,7 @@ impl FukuraDaemon {
                                                         ),
                                                         email: None,
                                                     },
+                                                    ontology: None,
                                                 };
 
                                                 if let Ok(record) = repo_clone.store_note(note) {
@@ -622,6 +623,7 @@ impl FukuraDaemon {
                                                 name: std::env::var("USERNAME").unwrap_or_else(|_| "unknown".to_string()),
                                                 email: None,
                                             },
+                                            ontology: None,
                                         };
 
                                         if let Ok(record) = repo_clone.store_note(note) {
@@ -1077,6 +1079,7 @@ impl FukuraDaemon {
             created_at: now,
             updated_at: now,
             author,
+            ontology: None,
         })
     }
 
@@ -1321,6 +1324,7 @@ impl FukuraDaemon {
                 name: std::env::var("USER").unwrap_or_else(|_| "auto".to_string()),
                 email: None,
             },
+            ontology: None,
         };
 
         match repo.store_note(note) {
@@ -1457,6 +1461,7 @@ impl FukuraDaemon {
                 name: "Fukura Daemon".into(),
                 email: None,
             },
+            ontology: None,
         }
     }
 }

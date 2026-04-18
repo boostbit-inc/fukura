@@ -14,9 +14,12 @@ pub mod domain {
     pub mod activity;
     pub mod activity_storage;
     pub mod models;
+    pub mod ontology;
     pub mod pack;
     pub mod redaction;
 }
+
+pub mod adapter;
 
 pub mod infrastructure {
     pub mod config;
@@ -42,6 +45,7 @@ pub use application::daemon_service;
 pub use domain::activity;
 pub use domain::activity_storage;
 pub use domain::models;
+pub use domain::ontology;
 pub use domain::pack;
 pub use domain::redaction;
 pub use infrastructure::config;
