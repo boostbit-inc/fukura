@@ -325,7 +325,7 @@ _fukura_record_command() {{
     local exit_code=$?
     local command="$1"
     local working_dir="$PWD"
-    
+
     # Check if recording mode is active
     local recording_file="$working_dir/.fukura/recording"
     if [ -f "$recording_file" ]; then
@@ -335,19 +335,33 @@ _fukura_record_command() {{
         # Use default session ID based on directory
         local session_id="$(echo "$PWD" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "default")"
     fi
-    
+
     # Capture stderr if available
     local stderr_content=""
     if [ -f "$_fukura_stderr_file" ]; then
         stderr_content="$(cat "$_fukura_stderr_file" 2>/dev/null | head -c 500)"
         rm -f "$_fukura_stderr_file"
     fi
-    
+
     # Send to daemon via Unix socket (fast & secure)
     if [ -S "$_fukura_socket_path" ]; then
         # Format: session_id|command|exit_code|working_dir|stderr
         local message="$session_id|$command|$exit_code|$working_dir|$stderr_content"
         echo "$message" | nc -U -w 1 "$_fukura_socket_path" 2>/dev/null || true
+    fi
+
+    # Feed the effectiveness tracker. When the daemon is running it
+    # receives the event via the socket above and updates stats in
+    # memory; this direct CLI call is the backup path for users who
+    # have the hook installed but no daemon — they still get
+    # fingerprint-level success / failure / abandoned counts.
+    if command -v fukura >/dev/null 2>&1; then
+        fukura attempt observe \
+            --session "$session_id" \
+            --command "$command" \
+            --exit-code "$exit_code" \
+            ${{stderr_content:+--stderr "$stderr_content"}} \
+            >/dev/null 2>&1 || true
     fi
 }}
 
