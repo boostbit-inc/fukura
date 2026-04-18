@@ -14,6 +14,7 @@ pub mod application {
 pub mod domain {
     pub mod activity;
     pub mod activity_storage;
+    pub mod attempt;
     pub mod models;
     pub mod ontology;
     pub mod pack;
@@ -23,6 +24,7 @@ pub mod domain {
 pub mod adapter;
 
 pub mod infrastructure {
+    pub mod attempt_storage;
     pub mod config;
     pub mod directory_monitor;
     pub mod file_watcher;
@@ -46,10 +48,12 @@ pub use application::daemon_service;
 pub use application::mcp;
 pub use domain::activity;
 pub use domain::activity_storage;
+pub use domain::attempt;
 pub use domain::models;
 pub use domain::ontology;
 pub use domain::pack;
 pub use domain::redaction;
+pub use infrastructure::attempt_storage;
 pub use infrastructure::config;
 pub use infrastructure::directory_monitor;
 pub use infrastructure::file_watcher;
