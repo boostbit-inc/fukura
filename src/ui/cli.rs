@@ -353,6 +353,13 @@ pub enum Commands {
     )]
     Attempt(AttemptCommand),
 
+    /// Install fukura as an MCP server in Claude Code's config.
+    #[command(
+        name = "claude-code",
+        about = "Register fukura with Claude Code (~/.claude.json or ./.mcp.json)"
+    )]
+    ClaudeCode(ClaudeCodeCommand),
+
     /// Manage daemon (advanced options)
     #[command(
         name = "daemon",
@@ -829,6 +836,51 @@ pub struct StatsArgs {
 }
 
 #[derive(Debug, Args)]
+pub struct ClaudeCodeCommand {
+    #[command(subcommand)]
+    pub command: ClaudeCodeSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ClaudeCodeSubcommand {
+    /// Add fukura to Claude Code's MCP server list (idempotent).
+    #[command(name = "register")]
+    Register(ClaudeCodeRegisterArgs),
+    /// Remove fukura from Claude Code's MCP server list.
+    #[command(name = "unregister")]
+    Unregister(ClaudeCodeUnregisterArgs),
+    /// Print the resolved config path and current fukura entry (if any).
+    #[command(name = "status")]
+    Status(ClaudeCodeStatusArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ClaudeCodeRegisterArgs {
+    #[arg(long, value_enum, default_value_t = crate::claude_code::Scope::User)]
+    pub scope: crate::claude_code::Scope,
+    #[arg(long, value_name = "PATH")]
+    pub repo: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub binary: Option<PathBuf>,
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct ClaudeCodeUnregisterArgs {
+    #[arg(long, value_enum, default_value_t = crate::claude_code::Scope::User)]
+    pub scope: crate::claude_code::Scope,
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct ClaudeCodeStatusArgs {
+    #[arg(long, value_enum, default_value_t = crate::claude_code::Scope::User)]
+    pub scope: crate::claude_code::Scope,
+}
+
+#[derive(Debug, Args)]
 pub struct RemoteCommand {
     #[arg(long, value_name = "URL", help = "Set remote URL")]
     set: Option<String>,
@@ -944,6 +996,7 @@ pub async fn run() -> Result<()> {
         Commands::Track(cmd) => handle_track(&cli, cmd).await?,
         Commands::Mcp(cmd) => crate::application::mcp::run(cmd.repo.clone()).await?,
         Commands::Attempt(cmd) => handle_attempt(cmd).await?,
+        Commands::ClaudeCode(cmd) => handle_claude_code(cmd)?,
     }
     Ok(())
 }
@@ -1048,6 +1101,89 @@ fn print_stats(fingerprint: &str, stats: &crate::domain::attempt::AttemptStats) 
         t = stats.total(),
         r = rate,
     );
+}
+
+fn handle_claude_code(cmd: &ClaudeCodeCommand) -> Result<()> {
+    use crate::claude_code::{self, RegisterOptions, RegisterOutcome, UnregisterOutcome};
+
+    match &cmd.command {
+        ClaudeCodeSubcommand::Register(args) => {
+            let binary = match &args.binary {
+                Some(p) => p.clone(),
+                None => {
+                    std::env::current_exe().context("could not locate current fukura binary")?
+                }
+            };
+            let opts = RegisterOptions {
+                scope: args.scope,
+                binary,
+                repo: args.repo.clone(),
+                dry_run: args.dry_run,
+            };
+            let outcome = claude_code::register(&opts)?;
+            let dry = if args.dry_run { " (dry-run)" } else { "" };
+            match outcome {
+                RegisterOutcome::Added { path } => println!(
+                    "✓ Registered fukura with Claude Code{dry} — wrote {}",
+                    path.display()
+                ),
+                RegisterOutcome::AlreadyPresent { path } => println!(
+                    "• fukura already registered in {} (no changes)",
+                    path.display()
+                ),
+                RegisterOutcome::Updated { path } => println!(
+                    "✓ Updated fukura entry in Claude Code config{dry} — {}",
+                    path.display()
+                ),
+            }
+            println!("  Restart Claude Code to pick up the change.");
+        }
+        ClaudeCodeSubcommand::Unregister(args) => {
+            match claude_code::unregister(args.scope, args.dry_run)? {
+                UnregisterOutcome::Removed { path } => {
+                    println!("✓ Removed fukura from {}", path.display())
+                }
+                UnregisterOutcome::NotPresent { path } => {
+                    println!(
+                        "• fukura was not registered in {} (no changes)",
+                        path.display()
+                    )
+                }
+            }
+        }
+        ClaudeCodeSubcommand::Status(args) => {
+            let path = match args.scope {
+                crate::claude_code::Scope::User => {
+                    let home =
+                        std::env::var_os("HOME").context("HOME environment variable is not set")?;
+                    PathBuf::from(home).join(crate::claude_code::USER_CONFIG)
+                }
+                crate::claude_code::Scope::Project => {
+                    std::env::current_dir()?.join(crate::claude_code::PROJECT_CONFIG)
+                }
+            };
+            println!("config: {}", path.display());
+            if !path.exists() {
+                println!("status: file does not exist");
+                return Ok(());
+            }
+            let raw =
+                std::fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
+            let v: serde_json::Value = serde_json::from_slice(&raw)
+                .with_context(|| format!("{} is not valid JSON", path.display()))?;
+            let entry = v
+                .get("mcpServers")
+                .and_then(|s| s.get(crate::claude_code::SERVER_NAME));
+            match entry {
+                Some(e) => println!(
+                    "status: registered\nentry: {}",
+                    serde_json::to_string_pretty(e)?
+                ),
+                None => println!("status: not registered"),
+            }
+        }
+    }
+    Ok(())
 }
 
 fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
