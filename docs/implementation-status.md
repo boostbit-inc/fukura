@@ -69,6 +69,17 @@ Versions referenced: `fukura` (CLI crate) as of `v0.3.8`; `fukura-hub`
 | `fukura_record_attempt` tool | ✅ v0.3 | N/A | 🚧 v1.1 |
 | `fuku claude-code register` (idempotent merge-patch of `~/.claude.json` / `.mcp.json`) | ✅ v0.3 | N/A | 🚧 v1.1 |
 
+## Spec extensions (beyond MUSTs)
+
+Features the spec lists as non-goals or explicit follow-ups that are
+shipping anyway as hub-specific extensions.
+
+| Capability | fukura-hub | fukura-site | Notes |
+|---|---|---|---|
+| Note-body forward compat (round-trip `links` / `meta` / `solutions` unchanged) | ✅ v0.1 (JSONB `extras` column) | N/A | Beyond spec §12 MUST — spec only requires "ignore"; we preserve. |
+| SSE real-time attempt feed `GET /v1/stream/attempts` | ✅ v0.1 (hub extension; documented as non-portable) | 🚧 v1.1 | Spec §13 listed this as "non-goal, can be built on top later". In-process broadcast, authenticated. |
+| Federation / k-anonymity | 🚧 draft spec (`docs/ekp-federation.md`) | 🚧 v1.1 | v0.1 draft with k=5 default, per-window salted hub-id hashes, Ed25519-signed contributions. Implementation pending spec review. |
+
 ## Contract testing (alignment doc §4)
 
 | Capability | fukura CLI | fukura-hub CI |
