@@ -134,8 +134,12 @@ impl AdapterRegistry {
     pub fn with_builtins() -> Self {
         let mut reg = Self::new();
         reg.register(Arc::new(builtin::CargoAdapter));
+        reg.register(Arc::new(builtin::DockerAdapter));
         reg.register(Arc::new(builtin::GitAdapter));
         reg.register(Arc::new(builtin::KubernetesAdapter));
+        reg.register(Arc::new(builtin::NodeAdapter));
+        reg.register(Arc::new(builtin::PythonAdapter));
+        reg.register(Arc::new(builtin::TerraformAdapter));
         // Generic must be registered last so that it only wins when nothing
         // else claims the context. Priority resolves the actual order but we
         // keep insertion order deterministic for easier debugging.

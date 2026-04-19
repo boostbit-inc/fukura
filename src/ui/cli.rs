@@ -283,6 +283,12 @@ pub enum Commands {
     #[command(about = "Import notes from markdown files or directories")]
     Import(ImportCommand),
 
+    /// Export everything in the local store to portable NDJSON.
+    /// Proves "no vendor lock-in" — one file per line, each line
+    /// is a self-contained note envelope + linked attempts.
+    #[command(about = "Export all notes and attempts to NDJSON (stdout or --output file)")]
+    Export(ExportCommand),
+
     /// Start recording commands
     #[command(about = "Start recording all commands (use 'fuku done' to finish)")]
     Rec(RecCommand),
@@ -402,6 +408,22 @@ pub enum Commands {
 }
 
 #[derive(Debug, Args)]
+pub struct ExportCommand {
+    /// Write to this file instead of stdout. `-` means stdout.
+    #[arg(long, short = 'o', value_name = "PATH", default_value = "-")]
+    pub output: String,
+
+    /// Include attempt records (default true). Disable for a notes-only
+    /// export when you want a smaller artifact.
+    #[arg(long, default_value_t = true)]
+    pub include_attempts: bool,
+
+    /// Include ontology fields in each record.
+    #[arg(long, default_value_t = true)]
+    pub include_ontology: bool,
+}
+
+#[derive(Debug, Args)]
 pub struct DashboardCommand {
     /// Port to bind on localhost. Defaults to 8765.
     #[arg(long, default_value_t = 8765)]
@@ -500,6 +522,11 @@ pub struct InitCommand {
 
     #[arg(long, help = "Skip shell hooks")]
     no_hooks: bool,
+
+    /// Show every file, directory, and background process init
+    /// would touch — without actually doing any of it.
+    #[arg(long, help = "Preview changes without writing anything")]
+    dry_run: bool,
 }
 
 #[derive(Debug, Args)]
@@ -1085,6 +1112,7 @@ pub async fn run() -> Result<()> {
         Commands::Log(cmd) => handle_log(&cli, cmd).await?,
         Commands::Show(cmd) => handle_show_activity(&cli, cmd).await?,
         Commands::Track(cmd) => handle_track(&cli, cmd).await?,
+        Commands::Export(cmd) => handle_export(&cli, cmd)?,
         Commands::Dashboard(cmd) => {
             let repo = FukuraRepo::discover(cli.repo.as_deref())?;
             crate::local_dashboard::serve(
@@ -1428,6 +1456,35 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
     } else {
         cmd.path.clone()
     };
+
+    // Dry-run: describe everything and exit without writing.
+    if cmd.dry_run {
+        let dot = path.join(".fukura");
+        println!("{} Dry-run — nothing is written or started.", "●".cyan());
+        println!();
+        println!("Would create:");
+        println!("  • {} (directory)", dot.display());
+        println!("  • {}/config.toml", dot.display());
+        println!("  • {}/objects/ (content-addressable note store)", dot.display());
+        println!("  • {}/index/ (Tantivy search index)", dot.display());
+        println!("  • {}/attempts.jsonl (effectiveness log)", dot.display());
+        println!();
+        if !cmd.no_daemon {
+            println!("Would start (unless declined at the prompt or --no-daemon given):");
+            println!("  • background daemon watching for shell failures and stderr");
+            println!("    (listens on a Unix socket under {}/)", dot.display());
+            println!();
+        }
+        if !cmd.no_hooks {
+            println!("Would suggest (but not execute) running:");
+            println!("  • eval \"$(fukura alias --setup)\"");
+            println!("    to add a shell hook to your $SHELL rc. Init never writes to your rc file.");
+            println!();
+        }
+        println!("No network calls. No files outside the target directory. No shell-rc edits.");
+        return Ok(());
+    }
+
     let repo = FukuraRepo::init(&path, cmd.force)?;
 
     if !cli.quiet {
@@ -2471,6 +2528,79 @@ fn handle_alias(cli: &Cli, cmd: &AliasCommand) -> Result<()> {
         println!("  fuku alias --remove  # Remove installed aliases");
     }
 
+    Ok(())
+}
+
+fn handle_export(cli: &Cli, cmd: &ExportCommand) -> Result<()> {
+    use std::io::Write;
+
+    let repo = open_repo(cli)?;
+
+    // Decide where bytes go.
+    let mut out: Box<dyn Write> = if cmd.output == "-" {
+        Box::new(std::io::stdout().lock())
+    } else {
+        Box::new(std::fs::File::create(&cmd.output).with_context(|| {
+            format!("opening {} for export", cmd.output)
+        })?)
+    };
+
+    // NDJSON — one JSON object per line, each a self-contained record.
+    // `kind` distinguishes note / attempt so a downstream consumer can
+    // load with a single pass.
+    //
+    // Notes are discovered via the search index with an empty query,
+    // matching how `fuku list` enumerates the repo. Not streaming (we
+    // hold up to ~10k note records in memory during export) but the
+    // content-addressable store caps realistic sizes.
+    let hits = repo.search("", 100_000, SearchSort::Updated)?;
+    let mut notes_count = 0usize;
+    for hit in &hits {
+        let record = match repo.load_note(&hit.object_id) {
+            Ok(r) => r,
+            Err(err) => {
+                eprintln!("warning: skipping {} ({err})", hit.object_id);
+                continue;
+            }
+        };
+        let mut value = serde_json::to_value(&record)?;
+        if !cmd.include_ontology {
+            if let Some(obj) = value
+                .get_mut("note")
+                .and_then(|v| v.as_object_mut())
+            {
+                obj.remove("ontology");
+            }
+        }
+        let line = serde_json::json!({
+            "kind": "note",
+            "object_id": record.object_id,
+            "envelope": value,
+        });
+        writeln!(out, "{}", serde_json::to_string(&line)?)?;
+        notes_count += 1;
+    }
+
+    let mut attempts_count = 0usize;
+    if cmd.include_attempts {
+        let store = crate::attempt_storage::AttemptStore::open(repo.dot_dir())?;
+        for attempt in store.load_all()? {
+            let line = serde_json::json!({
+                "kind": "attempt",
+                "attempt_id": attempt.attempt_id,
+                "record": attempt,
+            });
+            writeln!(out, "{}", serde_json::to_string(&line)?)?;
+            attempts_count += 1;
+        }
+    }
+
+    if !cli.quiet && cmd.output != "-" {
+        eprintln!(
+            "✓ exported {} notes and {} attempts to {}",
+            notes_count, attempts_count, cmd.output
+        );
+    }
     Ok(())
 }
 

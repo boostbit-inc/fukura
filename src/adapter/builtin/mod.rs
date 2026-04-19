@@ -5,11 +5,19 @@
 //! extend fukura's understanding of new tools or environments.
 
 mod cargo;
+mod docker;
 mod generic;
 mod git;
 mod kubernetes;
+mod node;
+mod python;
+mod terraform;
 
 pub use cargo::CargoAdapter;
+pub use docker::DockerAdapter;
 pub use generic::GenericAdapter;
 pub use git::GitAdapter;
 pub use kubernetes::KubernetesAdapter;
+pub use node::NodeAdapter;
+pub use python::PythonAdapter;
+pub use terraform::TerraformAdapter;
