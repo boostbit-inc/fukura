@@ -11,6 +11,7 @@ pub mod application {
     pub mod daemon_service;
     pub mod effectiveness;
     pub mod mcp;
+    pub mod seed_demo;
 }
 
 pub mod domain {
@@ -53,6 +54,7 @@ pub use application::daemon;
 pub use application::daemon_service;
 pub use application::effectiveness;
 pub use application::mcp;
+pub use application::seed_demo;
 pub use domain::activity;
 pub use domain::activity_storage;
 pub use domain::attempt;

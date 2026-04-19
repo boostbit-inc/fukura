@@ -930,6 +930,22 @@ pub enum HubSubcommand {
     /// Ship every local attempt record to the hub in one batch.
     #[command(name = "sync-attempts")]
     SyncAttempts,
+    /// Populate the hub with realistic demo data so the
+    /// `/effectiveness` dashboard is instantly useful. Safe against
+    /// a hub that already has data — everything it writes is under
+    /// deterministic fingerprints prefixed with `blake3:demo-`.
+    #[command(name = "seed-demo")]
+    SeedDemo(HubSeedArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct HubSeedArgs {
+    /// How many distinct fingerprints / notes to write. Default 20.
+    #[arg(long, default_value_t = 20)]
+    pub notes: usize,
+    /// Total attempts to distribute across those fingerprints. Default 500.
+    #[arg(long, default_value_t = 500)]
+    pub attempts: usize,
 }
 
 #[derive(Debug, Args)]
@@ -1217,6 +1233,25 @@ async fn handle_hub(cmd: &HubCommand) -> Result<()> {
                     rate,
                 );
             }
+        }
+        HubSubcommand::SeedDemo(args) => {
+            use crate::seed_demo::{seed_demo, SeedOptions};
+            let report = seed_demo(
+                &client,
+                SeedOptions {
+                    notes: args.notes,
+                    attempts: args.attempts,
+                },
+            )
+            .await?;
+            println!(
+                "✓ seeded {} notes and {} attempts across {} fingerprints",
+                report.notes_uploaded,
+                report.attempts_uploaded,
+                report.fingerprints.len()
+            );
+            println!("  Open /effectiveness on the hub UI to see the dashboard fill in.");
+            return Ok(());
         }
         HubSubcommand::SyncAttempts => {
             let repo = FukuraRepo::discover(None)?;
