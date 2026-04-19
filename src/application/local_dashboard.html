@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fukura dashboard</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0b0f19; color: #e5e7eb; font-family: -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", sans-serif; }
+  a { color: #c4b5fd; text-decoration: none; }
+  a:hover { color: #e9d5ff; }
+  header { padding: 28px 32px; border-bottom: 1px solid #1f2937; display: flex; align-items: baseline; justify-content: space-between; }
+  header h1 { font-size: 22px; margin: 0; background: linear-gradient(90deg, #818cf8, #f472b6); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
+  header .sub { color: #6b7280; font-size: 13px; }
+
+  main { padding: 24px 32px 64px; max-width: 1200px; margin: 0 auto; }
+
+  .kpi-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 900px) { .kpi-row { grid-template-columns: 1fr 1fr; } .kpi-row .kpi-primary { grid-column: span 2; } }
+  .kpi { border: 1px solid #1f2937; background: #111827; border-radius: 14px; padding: 16px 18px; }
+  .kpi-primary { border-color: rgba(245,158,11,0.45); background: linear-gradient(160deg, rgba(245,158,11,0.08), #111827 60%); }
+  .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #9ca3af; display: flex; align-items: center; gap: 6px; }
+  .kpi-value { font-size: 36px; font-weight: 800; margin-top: 6px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .kpi-primary .kpi-value { font-size: 48px; color: #ffffff; }
+  .kpi-sub { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+  .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .panel { border: 1px solid #1f2937; background: #111827; border-radius: 14px; padding: 16px 18px; }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; color: #e5e7eb; display: flex; align-items: center; gap: 8px; }
+  .panel h2 .dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: #6b7280; font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; border-bottom: 1px solid #1f2937; padding: 8px 4px; }
+  td { padding: 10px 4px; border-bottom: 1px solid #1f2937; font-variant-numeric: tabular-nums; }
+  tr:hover td { background: rgba(31,41,55,0.4); }
+  td.right { text-align: right; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #1f2937; color: #d1d5db; margin-right: 4px; }
+
+  .bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: #1f2937; margin-top: 8px; }
+  .bar > div { height: 100%; }
+  .bar-success { background: #10b981; }
+  .bar-failure { background: #ef4444; }
+  .bar-abandon { background: #f59e0b; }
+
+  .empty { text-align: center; padding: 48px 24px; color: #9ca3af; }
+  .empty code { background: #1f2937; color: #e5e7eb; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+  footer { margin-top: 40px; text-align: center; color: #4b5563; font-size: 12px; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Fukura — local dashboard</h1>
+    <span class="sub">Reading <code id="repo-path">your local .fukura/</code> · Ctrl-C to stop</span>
+  </header>
+  <main>
+    <div id="root">Loading…</div>
+  </main>
+  <footer>
+    Same shape as the hosted <a href="https://fukura.dev/docs/effectiveness">team dashboard</a>.
+    When you're ready to share this view with others, <a href="https://fukura.dev/docs/deploy-hub">deploy a hub</a>
+    or <a href="https://fukura.dev/beta">join the Personal waitlist</a>.
+  </footer>
+
+<script>
+// Tiny dashboard — no framework. Fetch three JSON endpoints, render.
+
+const fmtUsd = (v) => {
+  if (!v) return "$0";
+  if (v < 1) return "$" + v.toFixed(2);
+  if (v < 1000) return "$" + Math.round(v);
+  if (v < 1_000_000) return "$" + (v / 1000).toFixed(1) + "K";
+  return "$" + (v / 1_000_000).toFixed(1) + "M";
+};
+
+const pct = (v) => v == null ? "—" : Math.round(v * 100) + "%";
+
+// Same default factors as the hosted dashboard, per src/lib/costs.ts.
+const COST = {
+  agentFailureUsd: 0.08,
+  agentAbandonedUsd: 0.08,
+  humanFailureUsd: 45,
+  humanAbandonedUsd: 45,
+};
+
+function estCost(byAgent) {
+  let aF = 0, aA = 0, hF = 0, hA = 0;
+  for (const b of byAgent) {
+    if (b.agent_kind === "human") {
+      hF += b.failure; hA += b.abandoned;
+    } else {
+      aF += b.failure; aA += b.abandoned;
+    }
+  }
+  return aF * COST.agentFailureUsd + aA * COST.agentAbandonedUsd
+    + hF * COST.humanFailureUsd + hA * COST.humanAbandonedUsd;
+}
+
+async function load() {
+  try {
+    const [stats, byAgent] = await Promise.all([
+      fetch("/api/local/stats").then(r => r.json()),
+      fetch("/api/local/stats/by-agent").then(r => r.json()),
+    ]);
+    render(stats, byAgent.by_agent || []);
+  } catch (err) {
+    document.getElementById("root").innerHTML =
+      `<div class="empty">Couldn't load local stats: ${err}</div>`;
+  }
+}
+
+function render(stats, byAgent) {
+  const t = stats.total || { total: 0, success: 0, failure: 0, abandoned: 0, success_rate: null, unique_fingerprints: 0 };
+  if (t.total === 0) {
+    document.getElementById("root").innerHTML = emptyState();
+    return;
+  }
+  const cost = estCost(byAgent);
+  const rows = (stats.by_fingerprint || []).slice(0, 20);
+
+  document.getElementById("root").innerHTML = `
+    <div class="kpi-row">
+      <div class="kpi kpi-primary">
+        <div class="kpi-label">💰 Est. $ wasted (failures + abandons)</div>
+        <div class="kpi-value">${fmtUsd(cost)}</div>
+        <div class="kpi-sub">Defaults: $0.08/agent failure, $45/human failure. Override for your team.</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">✅ Success rate</div>
+        <div class="kpi-value">${pct(t.success_rate)}</div>
+        <div class="kpi-sub">${t.success} / ${t.success + t.failure}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">⚡ Attempts</div>
+        <div class="kpi-value">${t.total.toLocaleString()}</div>
+        <div class="kpi-sub">local capture</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label"># Problems</div>
+        <div class="kpi-value">${t.unique_fingerprints.toLocaleString()}</div>
+        <div class="kpi-sub">distinct fingerprints</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2><span class="dot"></span> Top pain</h2>
+        <table>
+          <thead><tr><th>Fingerprint</th><th class="right">Attempts</th><th class="right">Success</th><th class="right">Pain</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td style="font-family: ui-monospace, monospace; font-size: 12px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${r.fingerprint}</td>
+                <td class="right">${r.total}</td>
+                <td class="right">${pct(r.success_rate)}</td>
+                <td class="right">${r.pain.toFixed(1)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h2><span class="dot" style="background:#818cf8"></span> Humans vs agents</h2>
+        ${byAgent.map(b => {
+          const denom = b.total || 1;
+          const sPct = (b.success / denom) * 100;
+          const fPct = (b.failure / denom) * 100;
+          const aPct = (b.abandoned / denom) * 100;
+          return `
+            <div style="margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; font-size: 12px; color: #d1d5db;">
+                <span>${b.agent_kind}</span>
+                <span>${pct(b.success_rate)} · ${b.total}</span>
+              </div>
+              <div class="bar">
+                <div class="bar-success" style="width:${sPct}%"></div>
+                <div class="bar-failure" style="width:${fPct}%"></div>
+                <div class="bar-abandon" style="width:${aPct}%"></div>
+              </div>
+            </div>
+          `;
+        }).join("")}
+        ${byAgent.length === 0 ? '<div style="color:#6b7280;font-size:13px">No agent-labelled attempts yet. Run <code>fukura mcp</code> from Claude Code to populate.</div>' : ""}
+      </div>
+    </div>
+  `;
+}
+
+function emptyState() {
+  return `
+    <div class="empty">
+      <h2 style="color: #e5e7eb; margin: 0 0 8px;">No attempts yet</h2>
+      <p>Run any command that fails in this project, or register the MCP server with Claude Code:</p>
+      <p style="margin-top: 20px;">
+        <code>fukura init</code> &nbsp;·&nbsp;
+        <code>fukura claude-code register</code>
+      </p>
+      <p style="margin-top: 24px; color: #6b7280; font-size: 12px;">
+        Fukura captures everything locally. You can come back to this page anytime to see the pattern.
+      </p>
+    </div>
+  `;
+}
+
+load();
+setInterval(load, 5000);  // re-poll every 5 seconds (cheap, local, no real-time pressure)
+</script>
+</body>
+</html>

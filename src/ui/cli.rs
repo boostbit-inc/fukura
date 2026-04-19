@@ -392,6 +392,23 @@ pub enum Commands {
     /// Track activities
     #[command(about = "Start/stop activity tracking")]
     Track(TrackCommand),
+
+    /// Open the local effectiveness dashboard in a browser (no hub required).
+    #[command(
+        name = "dashboard",
+        about = "Launch a localhost web UI over the current .fukura/ store. Solo-dev tier; same shape as the hosted dashboard."
+    )]
+    Dashboard(DashboardCommand),
+}
+
+#[derive(Debug, Args)]
+pub struct DashboardCommand {
+    /// Port to bind on localhost. Defaults to 8765.
+    #[arg(long, default_value_t = 8765)]
+    pub port: u16,
+    /// Skip the auto-open-in-browser step. Useful in headless shells.
+    #[arg(long)]
+    pub no_open: bool,
 }
 
 #[derive(Debug, Args)]
@@ -1068,6 +1085,17 @@ pub async fn run() -> Result<()> {
         Commands::Log(cmd) => handle_log(&cli, cmd).await?,
         Commands::Show(cmd) => handle_show_activity(&cli, cmd).await?,
         Commands::Track(cmd) => handle_track(&cli, cmd).await?,
+        Commands::Dashboard(cmd) => {
+            let repo = FukuraRepo::discover(cli.repo.as_deref())?;
+            crate::local_dashboard::serve(
+                repo,
+                crate::local_dashboard::DashboardOptions {
+                    port: cmd.port,
+                    open_browser: !cmd.no_open,
+                },
+            )
+            .await?;
+        }
         Commands::Mcp(cmd) => crate::application::mcp::run(cmd.repo.clone()).await?,
         Commands::Attempt(cmd) => handle_attempt(cmd).await?,
         Commands::ClaudeCode(cmd) => handle_claude_code(cmd)?,

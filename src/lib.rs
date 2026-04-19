@@ -10,6 +10,7 @@ pub mod application {
     pub mod daemon;
     pub mod daemon_service;
     pub mod effectiveness;
+    pub mod local_dashboard;
     pub mod mcp;
     pub mod seed_demo;
 }
@@ -53,6 +54,7 @@ pub use application::config_cmd;
 pub use application::daemon;
 pub use application::daemon_service;
 pub use application::effectiveness;
+pub use application::local_dashboard;
 pub use application::mcp;
 pub use application::seed_demo;
 pub use domain::activity;

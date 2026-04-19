@@ -1,7 +1,7 @@
 # ADR 0005: Existing `privacy=private` rows are kept on the server
 
 Date: 2026-04-18
-Status: Accepted (confirmed 2026-04-18 by maintainer)
+Status: Superseded by [ADR 0009](./0009-purge-legacy-private-rows.md) on 2026-04-19
 
 ## Context
 
