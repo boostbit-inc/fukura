@@ -1198,7 +1198,7 @@ async fn handle_attempt(cmd: &AttemptCommand) -> Result<()> {
                     return Ok(());
                 }
                 let mut sorted: Vec<_> = by_fp.into_iter().collect();
-                sorted.sort_by(|a, b| b.1.total().cmp(&a.1.total()));
+                sorted.sort_by_key(|b| std::cmp::Reverse(b.1.total()));
                 for (fp, s) in sorted {
                     print_stats(&fp, &s);
                 }
@@ -1901,9 +1901,9 @@ fn search_all_repos(
 
     // Sort by relevance/date
     match sort {
-        SearchSort::Relevance => all_hits.sort_by(|a, b| b.likes.cmp(&a.likes)),
-        SearchSort::Updated => all_hits.sort_by(|a, b| b.updated_at.cmp(&a.updated_at)),
-        SearchSort::Likes => all_hits.sort_by(|a, b| b.likes.cmp(&a.likes)),
+        SearchSort::Relevance => all_hits.sort_by_key(|b| std::cmp::Reverse(b.likes)),
+        SearchSort::Updated => all_hits.sort_by_key(|b| std::cmp::Reverse(b.updated_at)),
+        SearchSort::Likes => all_hits.sort_by_key(|b| std::cmp::Reverse(b.likes)),
     }
 
     all_hits.truncate(limit);
@@ -4240,7 +4240,7 @@ async fn handle_log(cli: &Cli, cmd: &LogCommand) -> Result<()> {
 
     // Sort by time (most recent first)
     let mut sessions: Vec<_> = sessions;
-    sessions.sort_by(|a, b| b.start_time.cmp(&a.start_time));
+    sessions.sort_by_key(|b| std::cmp::Reverse(b.start_time));
 
     // Limit results
     sessions.truncate(cmd.limit);

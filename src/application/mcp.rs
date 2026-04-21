@@ -323,7 +323,7 @@ impl Server {
 
         // Stable sort: prediction-matches first, everything else in
         // original order.
-        annotated.sort_by(|a, b| b.0.cmp(&a.0));
+        annotated.sort_by_key(|b| std::cmp::Reverse(b.0));
         let warnings: Vec<Value> = annotated.into_iter().map(|(_, v)| v).collect();
 
         Ok(serde_json::to_string_pretty(&json!({

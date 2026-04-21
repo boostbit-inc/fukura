@@ -195,10 +195,10 @@ impl SearchIndex {
             }
             SearchSort::Updated => {
                 // Use unstable sort for better performance with large datasets
-                hits.sort_unstable_by(|a, b| b.updated_at.cmp(&a.updated_at));
+                hits.sort_unstable_by_key(|b| std::cmp::Reverse(b.updated_at));
             }
             SearchSort::Likes => {
-                hits.sort_unstable_by(|a, b| b.likes.cmp(&a.likes));
+                hits.sort_unstable_by_key(|b| std::cmp::Reverse(b.likes));
             }
         }
         Ok(hits)
