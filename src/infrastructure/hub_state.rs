@@ -44,9 +44,7 @@ impl HubState {
             .with_context(|| format!("creating {}", fukura_dir.display()))?;
         let path = fukura_dir.join(HUB_STATE_FILE);
         let data = match fs::read_to_string(&path) {
-            Ok(text) if !text.trim().is_empty() => {
-                serde_json::from_str(&text).unwrap_or_default()
-            }
+            Ok(text) if !text.trim().is_empty() => serde_json::from_str(&text).unwrap_or_default(),
             _ => HubStateData::default(),
         };
         Ok(Self { path, data })
@@ -73,8 +71,7 @@ impl HubState {
 
     fn save(&self) -> Result<()> {
         let text = serde_json::to_string_pretty(&self.data)?;
-        fs::write(&self.path, text)
-            .with_context(|| format!("writing {}", self.path.display()))
+        fs::write(&self.path, text).with_context(|| format!("writing {}", self.path.display()))
     }
 }
 

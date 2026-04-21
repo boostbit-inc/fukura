@@ -133,10 +133,7 @@ pub async fn seed_demo(client: &HttpHubClient, opts: SeedOptions) -> Result<Seed
             match client.upload_attempts(chunk).await {
                 Ok(r) => attempts_uploaded += r.accepted as usize,
                 Err(err) => {
-                    tracing::warn!(
-                        "upload_attempts for {} failed: {err:?}",
-                        spec.fingerprint
-                    );
+                    tracing::warn!("upload_attempts for {} failed: {err:?}", spec.fingerprint);
                 }
             }
             // Small pause so we don't trip the hub's rate limiter in a
@@ -197,7 +194,7 @@ fn pick_agent_kind(idx: usize) -> Option<String> {
     // 10% devin. Rough mirror of a team that has rolled out Claude Code
     // with some Cursor holdouts.
     match idx % 20 {
-        0..=7 => None, // human (40%)
+        0..=7 => None,                        // human (40%)
         8..=14 => Some("claude-code".into()), // 35%
         15..=18 => Some("cursor".into()),     // 20%
         _ => Some("devin".into()),            // 5%

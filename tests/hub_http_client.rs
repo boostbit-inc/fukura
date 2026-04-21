@@ -78,11 +78,12 @@ async fn upload_note(
     headers: HeaderMap,
     Json(envelope): Json<NoteEnvelope>,
 ) -> impl IntoResponse {
-    if let Some(key) = headers
-        .get("idempotency-key")
-        .and_then(|v| v.to_str().ok())
-    {
-        state.seen_idempotency_keys.lock().await.push(key.to_string());
+    if let Some(key) = headers.get("idempotency-key").and_then(|v| v.to_str().ok()) {
+        state
+            .seen_idempotency_keys
+            .lock()
+            .await
+            .push(key.to_string());
     }
     let mut throttle = state.throttle_next.lock().await;
     if *throttle > 0 {

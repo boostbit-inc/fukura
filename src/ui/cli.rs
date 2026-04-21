@@ -1316,10 +1316,7 @@ async fn handle_hub(cmd: &HubCommand) -> Result<()> {
             let all = store.load_all()?;
             let since = hub_state.last_attempts_synced_at();
             let to_upload: Vec<_> = match since {
-                Some(cutoff) => all
-                    .into_iter()
-                    .filter(|a| a.occurred_at > cutoff)
-                    .collect(),
+                Some(cutoff) => all.into_iter().filter(|a| a.occurred_at > cutoff).collect(),
                 None => all,
             };
             if to_upload.is_empty() {
@@ -1465,7 +1462,10 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
         println!("Would create:");
         println!("  • {} (directory)", dot.display());
         println!("  • {}/config.toml", dot.display());
-        println!("  • {}/objects/ (content-addressable note store)", dot.display());
+        println!(
+            "  • {}/objects/ (content-addressable note store)",
+            dot.display()
+        );
         println!("  • {}/index/ (Tantivy search index)", dot.display());
         println!("  • {}/attempts.jsonl (effectiveness log)", dot.display());
         println!();
@@ -1478,7 +1478,9 @@ fn handle_init(cli: &Cli, cmd: &InitCommand) -> Result<()> {
         if !cmd.no_hooks {
             println!("Would suggest (but not execute) running:");
             println!("  • eval \"$(fukura alias --setup)\"");
-            println!("    to add a shell hook to your $SHELL rc. Init never writes to your rc file.");
+            println!(
+                "    to add a shell hook to your $SHELL rc. Init never writes to your rc file."
+            );
             println!();
         }
         println!("No network calls. No files outside the target directory. No shell-rc edits.");
@@ -2540,9 +2542,10 @@ fn handle_export(cli: &Cli, cmd: &ExportCommand) -> Result<()> {
     let mut out: Box<dyn Write> = if cmd.output == "-" {
         Box::new(std::io::stdout().lock())
     } else {
-        Box::new(std::fs::File::create(&cmd.output).with_context(|| {
-            format!("opening {} for export", cmd.output)
-        })?)
+        Box::new(
+            std::fs::File::create(&cmd.output)
+                .with_context(|| format!("opening {} for export", cmd.output))?,
+        )
     };
 
     // NDJSON — one JSON object per line, each a self-contained record.
@@ -2565,10 +2568,7 @@ fn handle_export(cli: &Cli, cmd: &ExportCommand) -> Result<()> {
         };
         let mut value = serde_json::to_value(&record)?;
         if !cmd.include_ontology {
-            if let Some(obj) = value
-                .get_mut("note")
-                .and_then(|v| v.as_object_mut())
-            {
+            if let Some(obj) = value.get_mut("note").and_then(|v| v.as_object_mut()) {
                 obj.remove("ontology");
             }
         }

@@ -4,6 +4,10 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 ignore = [
     # paste is unmaintained but used by ratatui
     { id = "RUSTSEC-2024-0436", reason = "paste is used by ratatui dependency, will be replaced when updated" },
+    # Unsound warnings in transitive deps we don't control; track upstream fixes.
+    { id = "RUSTSEC-2026-0002", reason = "lru unsound via tantivy + ratatui; waiting on upstream" },
+    { id = "RUSTSEC-2026-0005", reason = "oneshot unsound via tantivy; waiting on upstream" },
+    { id = "RUSTSEC-2026-0097", reason = "rand unsound via tantivy + quinn-proto; waiting on upstream" },
 ]
 
 [licenses]

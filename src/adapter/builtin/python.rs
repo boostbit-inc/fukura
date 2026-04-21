@@ -16,8 +16,10 @@ use crate::domain::ontology::{ErrorOntology, FingerprintInput, Severity};
 /// Fingerprint on the missing module name so every "please pip install
 /// X" captures as the same problem regardless of which file raised.
 static MODULE_NOT_FOUND: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?:ModuleNotFoundError|ImportError): No module named ['\x22](?P<m>[^'\x22]+)['\x22]")
-        .expect("valid regex")
+    Regex::new(
+        r"(?:ModuleNotFoundError|ImportError): No module named ['\x22](?P<m>[^'\x22]+)['\x22]",
+    )
+    .expect("valid regex")
 });
 
 /// Generic exception line — "SomeError: message here".
@@ -27,13 +29,13 @@ static EXCEPTION_LINE: Lazy<Regex> = Lazy::new(|| {
 
 /// pip's ERESOLVE / No matching distribution pattern.
 static PIP_DIST: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"No matching distribution found for (?P<pkg>[A-Za-z0-9_.\-]+)").expect("valid regex")
+    Regex::new(r"No matching distribution found for (?P<pkg>[A-Za-z0-9_.\-]+)")
+        .expect("valid regex")
 });
 
 /// pytest "collected 0 items" or summary-line failures.
-static PYTEST_SUMMARY: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?m)^(?:FAILED|ERROR)\s+(?P<test>[^ \n]+)").expect("valid regex")
-});
+static PYTEST_SUMMARY: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?m)^(?:FAILED|ERROR)\s+(?P<test>[^ \n]+)").expect("valid regex"));
 
 pub struct PythonAdapter;
 
@@ -51,9 +53,8 @@ impl Adapter for PythonAdapter {
             return false;
         }
         match ctx.command_head() {
-            Some("python") | Some("python3") | Some("pytest") | Some("pip")
-            | Some("pip3") | Some("uv") | Some("poetry") | Some("ruff")
-            | Some("mypy") => true,
+            Some("python") | Some("python3") | Some("pytest") | Some("pip") | Some("pip3")
+            | Some("uv") | Some("poetry") | Some("ruff") | Some("mypy") => true,
             _ => {
                 // Also match if stderr contains a Python traceback — many
                 // wrappers (make, npm, shell scripts) ultimately invoke
@@ -184,10 +185,16 @@ mod tests {
     #[test]
     fn module_not_found_fingerprints_on_module_name() {
         let a = PythonAdapter
-            .parse(&ctx("python script.py", "ModuleNotFoundError: No module named 'requests'"))
+            .parse(&ctx(
+                "python script.py",
+                "ModuleNotFoundError: No module named 'requests'",
+            ))
             .unwrap();
         let b = PythonAdapter
-            .parse(&ctx("python other.py", "ModuleNotFoundError: No module named 'requests'"))
+            .parse(&ctx(
+                "python other.py",
+                "ModuleNotFoundError: No module named 'requests'",
+            ))
             .unwrap();
         assert_eq!(a.fingerprint, b.fingerprint);
         assert_eq!(a.category, "python.import.module_not_found");
@@ -197,10 +204,16 @@ mod tests {
     #[test]
     fn different_modules_get_different_fingerprints() {
         let a = PythonAdapter
-            .parse(&ctx("python x.py", "ModuleNotFoundError: No module named 'requests'"))
+            .parse(&ctx(
+                "python x.py",
+                "ModuleNotFoundError: No module named 'requests'",
+            ))
             .unwrap();
         let b = PythonAdapter
-            .parse(&ctx("python x.py", "ModuleNotFoundError: No module named 'pandas'"))
+            .parse(&ctx(
+                "python x.py",
+                "ModuleNotFoundError: No module named 'pandas'",
+            ))
             .unwrap();
         assert_ne!(a.fingerprint, b.fingerprint);
     }
@@ -233,7 +246,9 @@ mod tests {
         let ctx = InvocationContext {
             command: "make build".into(),
             exit_code: Some(2),
-            stderr: Some("Traceback (most recent call last):\n  File foo.py\nValueError: bad".into()),
+            stderr: Some(
+                "Traceback (most recent call last):\n  File foo.py\nValueError: bad".into(),
+            ),
             ..Default::default()
         };
         assert!(PythonAdapter.matches(&ctx));

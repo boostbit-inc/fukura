@@ -34,9 +34,8 @@ static JEST_FAIL: Lazy<Regex> =
 
 /// Generic node runtime exception — "TypeError: ..." at top of
 /// traceback.
-static NODE_EXCEPTION: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?m)^(?P<kind>[A-Z][A-Za-z0-9_]*Error):\s").expect("valid regex")
-});
+static NODE_EXCEPTION: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?m)^(?P<kind>[A-Z][A-Za-z0-9_]*Error):\s").expect("valid regex"));
 
 pub struct NodeAdapter;
 

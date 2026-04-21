@@ -317,8 +317,7 @@ impl HubClient for HttpHubClient {
         }
 
         // MUST §10.3: honour the server's advertised size limit.
-        let body =
-            serde_json::to_vec(envelope).context("serialising note envelope for upload")?;
+        let body = serde_json::to_vec(envelope).context("serialising note envelope for upload")?;
         if let Ok(info) = self.cached_info().await {
             if let Some(max) = info.max_note_bytes {
                 if body.len() as u64 > max {

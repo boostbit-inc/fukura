@@ -166,16 +166,14 @@ struct NoteQuery {
     limit: Option<usize>,
 }
 
-async fn search_notes(
-    State(state): State<LocalState>,
-    Query(q): Query<NoteQuery>,
-) -> Response {
+async fn search_notes(State(state): State<LocalState>, Query(q): Query<NoteQuery>) -> Response {
     let limit = q.limit.unwrap_or(20).min(100);
     let query = q.q.as_deref().unwrap_or("");
-    let hits = match state
-        .repo
-        .search(query, limit, crate::infrastructure::index::SearchSort::Relevance)
-    {
+    let hits = match state.repo.search(
+        query,
+        limit,
+        crate::infrastructure::index::SearchSort::Relevance,
+    ) {
         Ok(h) => h,
         Err(err) => return server_error(format!("searching notes: {err}")),
     };
@@ -184,11 +182,7 @@ async fn search_notes(
         .into_iter()
         .filter_map(|h| {
             let record = state.repo.load_note(&h.object_id).ok()?;
-            let ontology_fp = record
-                .note
-                .ontology
-                .as_ref()
-                .map(|o| o.fingerprint.clone());
+            let ontology_fp = record.note.ontology.as_ref().map(|o| o.fingerprint.clone());
             if let Some(ref want) = q.fingerprint {
                 if ontology_fp.as_deref() != Some(want.as_str()) {
                     return None;
@@ -356,9 +350,7 @@ mod tests {
         ];
         let buckets = fold_by_agent(&attempts);
         assert_eq!(buckets.len(), 2);
-        assert!(buckets
-            .iter()
-            .any(|b| b["agent_kind"] == "human"));
+        assert!(buckets.iter().any(|b| b["agent_kind"] == "human"));
         assert!(buckets.iter().any(|b| b["agent_kind"] == "cursor"));
     }
 

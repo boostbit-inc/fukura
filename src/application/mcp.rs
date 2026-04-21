@@ -297,10 +297,11 @@ impl Server {
                     .ok()
                     .and_then(|r| r.note.ontology.map(|o| o.fingerprint));
                 let stats = fp.as_deref().and_then(|f| stats_by_fp.get(f));
-                let matches_prediction =
-                    fp.as_deref().zip(predicted_fingerprint.as_deref())
-                        .map(|(a, b)| a == b)
-                        .unwrap_or(false);
+                let matches_prediction = fp
+                    .as_deref()
+                    .zip(predicted_fingerprint.as_deref())
+                    .map(|(a, b)| a == b)
+                    .unwrap_or(false);
                 let entry = json!({
                     "note_id": h.object_id,
                     "title": h.title,
